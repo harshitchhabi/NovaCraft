@@ -1,0 +1,160 @@
+# DEVLOG
+
+Running log of design decisions made while building NovaCraft, for anything
+the build prompt left to "standard practice."
+
+## Structured IR instead of flat label/goto three-address code
+
+`if`/`while` are kept as *structured* IR nodes (`IfInstr` carries
+`thenBody`/`elseBody` instruction lists; `WhileInstr` carries `condInstrs` +
+`body`) rather than being flattened into labels and conditional jumps.
+Reasons:
+1. It maps losslessly onto WebAssembly's structured `block`/`loop`/`br_if`
+   control flow, which is the codegen target — no CFG-to-structured-control
+   recovery algorithm (e.g. Relooper) is needed.
+2. The required range-analysis fixed-point iteration ("re-analyze the loop
+   body until ranges stabilize") is naturally "iterate over this loop's body
+   list."
+3. Linear-scan register allocation still applies: a separate flattening pass
+   (`regalloc.ts`) assigns every instruction a linear program-point index
+   purely for computing live ranges, while the nested shape is preserved
+   everywhere else (optimization, codegen).
+
+Each virtual register still gets exactly one three-address-style definition
+site per assignment (`dest = op(a, b)`), so this is a three-address code in
+the conventional sense — only the control-flow skeleton around it is
+structured instead of flattened.
+
+## Array-length convention
+
+The language has no dependent typing linking an array parameter to a length
+parameter, and §3 of the spec is explicit that "the compiler does not track
+length automatically" while still requiring a length operand at every
+`BoundsCheck`. The resolution used here: within a function's own parameter
+list, an `arr: T[]` parameter's length is **the parameter immediately
+following it**, if that next parameter has type `int` (e.g.
+`sumArray(arr: int[], len: int)`). This is established once per function
+during IR generation (`ir.ts`, `arrayLength` map) and is exactly the
+convention shown in the spec's own example. Since arrays only ever appear as
+parameters (no locals, no literals), every array variable referenced inside
+a function is one of that function's own parameters, so this per-function
+convention is sufficient — no cross-function or whole-program analysis is
+needed.
+
+## Bounds-check elimination: numeric intervals + a "less-than fact" map
+
+Plain numeric interval analysis (`[lo, hi]` with ±∞) is not enough on its
+own to prove `sumArray`'s `arr[i]` access safe: `len` is an unconstrained
+parameter, so its numeric range is `[-∞, +∞]` and no purely numeric interval
+for `i` can ever be shown to be `< len`. Two facts are threaded forward
+together through each function instead (`optimize/rangeAnalysis.ts`):
+
+1. A standard numeric range per register, with the required fixed-point +
+   widening treatment for `while` loops (re-analyze the body; after 2
+   rounds without stabilizing, widen any still-growing bound to infinity).
+   This proves facts like `i >= 0`.
+2. A lightweight `condBound` map recording, on entry to a `while (x < y)`
+   body, that `x < y` holds *symbolically* (by register identity, not by
+   value) — invalidated the instant `x` or `y` is next redefined. This lets
+   the analysis prove `i < len` from the loop header even though `len`
+   itself carries no useful numeric upper bound.
+
+A `BoundsCheck(index, length)` is eliminated only when **both**
+`index.lo >= 0` and (`index.hi < length.lo` numerically **or** the
+`condBound` map proves `index < length` symbolically) hold. When in doubt,
+the check is kept — this bias toward keeping checks is deliberate per the
+spec ("never remove a check unless fully proven").
+
+## Loop-carried liveness for the linear-scan flattening pass
+
+The flattening pass that numbers instructions for linear-scan register
+allocation originally computed each virtual register's live range as
+`[firstDefOrUse, lastDefOrUse]` in a single textual pass over the flattened
+program. This under-counts liveness across a loop's back-edge: a variable
+read near the *top* of a loop body (e.g. `len` in `i < len`) is needed again
+on the *next* iteration, even though its last textual occurrence in a single
+pass appears earlier than some other register's def/use later in that same
+iteration. The fix (`regalloc.ts`, `flattenList`'s `while` case): after
+flattening a loop's `condInstrs` + `body`, collect every register touched
+anywhere inside it and add one synthetic "use" of all of them immediately
+after the loop. This conservatively extends every loop-touched register's
+live range to cover the loop's entire span, preventing two registers that
+are actually both live across the back-edge from being assigned the same
+physical register or spill slot.
+
+## Physical registers as banked WASM locals; spills in linear memory
+
+WebAssembly itself has no register file — it's a stack machine with
+per-function locals of unlimited count. To make the 4-register budget and
+spilling behavior *actually observable in the generated code* (not just a
+printed table), codegen routes every virtual register access through the
+allocation table: a "physical register" `rN` is realized as a pair of WASM
+locals, `$rN_i` (i32, for int/bool) and `$rN_f` (f32, for float) — since a
+given physical slot is only ever assigned to non-overlapping virtual
+register lifetimes, reusing the same `N` across both type banks is safe. A
+spilled register is instead loaded/stored against this call's spill region
+in linear memory, addressed as `$frameBase + slot * 4`. Every function
+declares the full fixed set of `r0_i..r{budget-1}_i`, `r0_f..r{budget-1}_f`
+locals regardless of actual use, plus two scratch locals (`$scratch_i`,
+`$scratch_f`) used only to reorder a freshly computed value before a memory
+store (WASM's `store` instructions expect `[address, value]` on the stack,
+address first, but a computed value is already sitting on top of the stack
+by the time codegen decides it must go to a spill slot).
+
+## Stack frame / calling convention
+
+Each call decrements the global `$sp` by its own frame's spill-slot bytes in
+the prologue, captures the resulting address in a local `$frameBase`, and
+restores `$sp` to `frameBase + frameSize` immediately before every `return`
+(WASM's native multi-exit `return` instruction is used directly — no
+epilogue-via-branch gymnastics needed). Because `$sp` is a single global
+shared by all activations and each call only ever touches the region between
+its own `frameBase` and `frameBase + frameSize`, this is correct under
+recursion: nested/recursive calls push further down from whatever value the
+caller left `$sp` at, and each restores exactly what it decremented on its
+own return, independent of how many calls happened in between.
+
+## Runtime trap side-channel and source map correlation
+
+The spec's side-channel mechanism (write the failing index/length to fixed
+memory offsets before trapping) is extended with a third slot,
+`TRAP_CHECK_ID_OFFSET` (4104), holding the id of the specific `BoundsCheck`
+that fired. This is necessary because the JS `WebAssembly.RuntimeError`
+caught by the harness carries no instruction offset, so there is no other
+way to know *which* of a function's (possibly several) retained bounds
+checks trapped. Each retained check gets a small globally-unique id at IR
+generation time; the JSON source map is keyed by that id and the harness
+looks it up after reading the side-channel to produce the final
+`<file>:<line>:<column>` diagnostic.
+
+## `%` restricted to `int` operands
+
+The grammar's `additive`/`multiplicative` precedence levels don't
+distinguish which arithmetic operators apply to which numeric type, but
+WebAssembly has no `f32` remainder instruction. Semantic analysis requires
+both operands of `%` to be `int` (a normal restriction in comparable
+languages); `+ - * /` remain valid for both `int` and `float`.
+
+## `print` truncates floats to i32
+
+The spec's runtime harness contract is specifically "a `print` import
+(collects/prints i32 values)". Printing a `float` truncates it to `i32` via
+`i32.trunc_f32_s` before the call — not exercised by the required examples,
+but keeps `print(someFloat)` well-defined rather than a codegen error.
+
+## `main`'s signature for `--run`
+
+NovaCraft has no array literals or local array allocation — arrays only
+ever arrive as parameters (§3) — so a NovaCraft program has no way to
+*construct* an array value from within the language itself. This means
+`main` cannot call an array-taking function like `sumArray` unless `main`
+itself takes array parameters. `examples/sumArray.min`'s `main` therefore
+has the signature `main(arr: int[], len: int) -> int`, and the CLI's `--run`
+driver (`src/cli.ts`, `buildRunArgs`) special-cases this: using `main`'s own
+IR-level array-length convention (see above), it seeds a fixed default test
+array (`[1, 2, 3, 4, 5]`) into linear memory for every array parameter of
+`main` and passes the matching length/offset when invoking it. This is a
+harness-side convention, not a language feature — it only affects how the
+CLI's `--run` flag chooses arguments for `main`, exactly as permitted by the
+spec ("adjust to whatever your main/print convention ends up being, but keep
+it consistent and documented").

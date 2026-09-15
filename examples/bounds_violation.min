@@ -1,0 +1,12 @@
+// Deliberately indexes out of range with a constant (100) that has no
+// derivable relationship to the array's length, so the BoundsCheck survives
+// and traps at runtime against any test array shorter than 101 elements.
+func access(arr: int[], len: int) -> int {
+    return arr[100];
+}
+
+func main(arr: int[], len: int) -> int {
+    let v: int = access(arr, len);
+    print(v);
+    return 0;
+}

@@ -1,0 +1,12 @@
+// Indexes with `k`, a parameter with no loop- or condition-derived relation
+// to `len`. The range analysis has nothing to prove this access safe with,
+// so its BoundsCheck must survive to runtime.
+func unsafeGet(arr: int[], len: int, k: int) -> int {
+    return arr[k];
+}
+
+func main(arr: int[], len: int, k: int) -> int {
+    let v: int = unsafeGet(arr, len, k);
+    print(v);
+    return 0;
+}

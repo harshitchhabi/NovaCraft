@@ -1,0 +1,22 @@
+// Sums the elements of an integer array. The BoundsCheck on arr[i] is
+// provably safe (i ranges over [0, len)) and should be eliminated by the
+// range analysis pass.
+func sumArray(arr: int[], len: int) -> int {
+    let total: int = 0;
+    let i: int = 0;
+    while (i < len) {
+        total = total + arr[i];
+        i = i + 1;
+    }
+    return total;
+}
+
+// `main` takes an (array, length) parameter pair so the CLI's --run driver
+// (which cannot construct an array value in NovaCraft source itself, since
+// arrays only ever arrive as parameters) can seed a default test array into
+// linear memory and call main(0, 5) -- see README.md "Running via the CLI".
+func main(arr: int[], len: int) -> int {
+    let total: int = sumArray(arr, len);
+    print(total);
+    return 0;
+}

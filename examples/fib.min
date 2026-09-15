@@ -1,0 +1,15 @@
+// Recursive Fibonacci -- no arrays, exercises the stack-frame/call
+// convention and register pressure (several simultaneously-live values
+// across the two recursive calls plus their sum).
+func fib(n: int) -> int {
+    if (n < 2) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+func main() -> int {
+    let result: int = fib(10);
+    print(result);
+    return 0;
+}
