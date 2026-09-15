@@ -1,18 +1,13 @@
 #!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
-import { Lexer } from './lexer';
-import { Parser } from './parser';
-import { SemanticAnalyzer } from './semantic';
-import { generateIR, printProgram, computeBoundsStats, formatBoundsStats, IRProgram, IRFunction } from './ir';
-import { constantFold } from './optimize/constantFold';
-import { deadCodeElimination } from './optimize/deadCode';
-import { rangeAnalysis } from './optimize/rangeAnalysis';
-import { generateModule } from './codegen';
+import { printProgram, computeBoundsStats, formatBoundsStats, IRFunction } from './ir';
 import { formatAllocation } from './regalloc';
 import { toJSON } from './sourcemap';
-import { ErrorReporter } from './errors';
+import { compileProgram, CompileError } from './compile';
 import { assembleAndInstantiate, callFunction, readTrapSideChannel, formatTrapMessage, writeIntArray } from '../runtime/harness';
+import { Lexer } from './lexer';
+import { ErrorReporter } from './errors';
 import { TokenType } from './tokens';
 
 interface CliOptions {
@@ -25,6 +20,7 @@ interface CliOptions {
   run: boolean;
   regBudget: number;
   stats: boolean;
+  noBoundsElim: boolean;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -38,6 +34,7 @@ function parseArgs(argv: string[]): CliOptions {
     run: false,
     regBudget: 4,
     stats: false,
+    noBoundsElim: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -65,6 +62,9 @@ function parseArgs(argv: string[]): CliOptions {
         break;
       case '--reg-budget':
         opts.regBudget = parseInt(argv[++i], 10);
+        break;
+      case '--no-bounds-elim':
+        opts.noBoundsElim = true;
         break;
       default:
         if (!arg.startsWith('--')) opts.file = arg;
@@ -114,63 +114,46 @@ export async function compileAndRun(argvInput: string[]): Promise<number> {
   const source = fs.readFileSync(absPath, 'utf-8');
   const displayName = path.basename(opts.file);
 
-  const reporter = new ErrorReporter();
-
-  const lexer = new Lexer(source, reporter);
-  const tokens = lexer.tokenize();
   if (opts.emitTokens) {
+    const tokenReporter = new ErrorReporter();
+    const tokens = new Lexer(source, tokenReporter).tokenize();
     for (const t of tokens) {
       if (t.type === TokenType.EOF) continue;
       console.log(`${t.type} '${t.lexeme}' @${t.line}:${t.column}`);
     }
   }
 
-  const parser = new Parser(tokens, reporter);
-  const program = parser.parseProgram();
+  let compiled;
+  try {
+    compiled = compileProgram(source, { regBudget: opts.regBudget, skipRangeAnalysis: opts.noBoundsElim });
+  } catch (e) {
+    if (e instanceof CompileError) {
+      for (const err of e.errors) console.error(err.message);
+      return 1;
+    }
+    throw e;
+  }
+
   if (opts.emitAst) {
-    console.log(JSON.stringify(program, null, 2));
+    console.log(JSON.stringify(compiled.program, null, 2));
   }
-
-  if (reporter.hasErrors()) {
-    reporter.printAll();
-    return 1;
-  }
-
-  const semantic = new SemanticAnalyzer(reporter);
-  semantic.analyze(program);
-  if (reporter.hasErrors()) {
-    reporter.printAll();
-    return 1;
-  }
-
-  let ir: IRProgram = generateIR(program);
-  const irStages: Array<{ label: string; ir: IRProgram }> = [{ label: 'IR (initial, after BoundsCheck insertion)', ir }];
-
-  ir = constantFold(ir);
-  irStages.push({ label: 'after constant folding', ir });
-
-  ir = deadCodeElimination(ir);
-  irStages.push({ label: 'after dead-code elimination', ir });
-
-  ir = rangeAnalysis(ir);
-  irStages.push({ label: 'after range analysis (bounds-check elimination)', ir });
 
   if (opts.emitIr) {
-    for (const stage of irStages) {
+    for (const stage of compiled.stages) {
       console.log(`\n=== ${stage.label} ===`);
       console.log(printProgram(stage.ir));
     }
   }
 
-  const stats = computeBoundsStats(ir);
+  const stats = computeBoundsStats(compiled.finalIR);
   if (opts.emitIr || opts.stats) {
     console.log('\n' + formatBoundsStats(stats));
   }
 
-  const codegenResult = generateModule(ir, opts.regBudget);
+  const codegenResult = compiled.codegen;
 
   if (opts.emitAlloc) {
-    for (const fn of ir.functions) {
+    for (const fn of compiled.finalIR.functions) {
       console.log('\n' + formatAllocation(fn, codegenResult.allocations.get(fn.name)!));
     }
   }
@@ -184,7 +167,7 @@ export async function compileAndRun(argvInput: string[]): Promise<number> {
   }
 
   if (opts.run) {
-    const mainFn = ir.functions.find((f) => f.name === 'main');
+    const mainFn = compiled.finalIR.functions.find((f) => f.name === 'main');
     if (!mainFn) {
       console.error("error: no 'main' function to run");
       return 1;

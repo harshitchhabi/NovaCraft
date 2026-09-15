@@ -9,7 +9,8 @@
   "scripts": {
     "build": "tsc -p .",
     "test": "jest",
-    "novac": "ts-node src/cli.ts"
+    "novac": "ts-node src/cli.ts",
+    "benchmark": "ts-node benchmark/boundsCheckBenchmark.ts"
   },
   "license": "MIT",
   "devDependencies": {

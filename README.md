@@ -78,6 +78,8 @@ novac <file.min> [options]
   --run             assemble, instantiate, and execute (calls `main`), printing program output
   --reg-budget N    override the register budget (default 4)
   --stats           print bounds-check elimination stats even without --emit-ir
+  --no-bounds-elim  skip the range-analysis pass, retaining every BoundsCheck
+                    (for comparison -- see "Does the elimination actually matter?" below)
 ```
 
 Run it via `npx ts-node src/cli.ts <file> [options]`, or `npm run novac --
@@ -160,11 +162,42 @@ Running with `--emit-ir` or `--stats` prints a summary, e.g.:
 Bounds checks [sumArray]: 1 inserted, 0 retained (100% eliminated)
 ```
 
+### Does the elimination actually matter?
+
+Proving a check redundant is only interesting if removing it is actually
+faster. `benchmark/boundsCheckBenchmark.ts` compiles `sumArray.min` **twice**
+from the same source — once normally (its check eliminated) and once with
+`--no-bounds-elim`'s underlying option (the check retained, running on every
+single array access) — assembles both to real WebAssembly, and times
+summing a 4,000,000-element array over 20 calls each, after a warmup. Run it
+with:
+
+```bash
+npm run benchmark
+```
+
+Representative output on this machine:
+
+```
+Checks eliminated (range analysis ON):  4.2 ms/call avg
+Checks retained   (range analysis OFF): 5.1 ms/call avg
+
+Speedup from elimination: 1.2x  (17-26% overhead removed)
+Both variants computed the correct sum: 4000000.
+```
+
+Both variants are verified to compute the identical, correct sum before any
+timing number is trusted — the benchmark is not just measuring two programs
+that happen to run at different speeds, it's measuring the *same* proven
+result reached with and without paying for the check.
+
 ## Tests
 
 `npm test` runs the full Jest suite: one file per pipeline stage
 (`tests/lexer.test.ts`, `parser.test.ts`, `semantic.test.ts`, `ir.test.ts`,
-`rangeAnalysis.test.ts`, `regalloc.test.ts`), plus `tests/e2e.test.ts`
+`rangeAnalysis.test.ts`, `regalloc.test.ts`), `tests/compile.test.ts`
+(guarding the `--no-bounds-elim` path the benchmark relies on), plus
+`tests/e2e.test.ts`
 covering real WebAssembly execution (the happy-path sum, recursive
 Fibonacci, a runtime bounds-violation trap with the exact diagnostic
 message, and a CLI smoke test).

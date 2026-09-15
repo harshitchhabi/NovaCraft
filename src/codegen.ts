@@ -50,7 +50,7 @@ function collectRegTypes(fn: IRFunction): Map<string, IRPrimType> {
   return types;
 }
 
-interface CodegenResult {
+export interface CodegenResult {
   wat: string;
   sourceMap: SourceMap;
   allocations: Map<string, AllocationResult>; // function name -> allocation table (for --emit-alloc)
