@@ -83,6 +83,49 @@ function transferBinop(bop: string, l: Range, r: Range): Range {
   }
 }
 
+// Collects every register a loop's own condInstrs/body defines (recursively
+// through nested if/while), so a completed while loop can tell which
+// condBound facts it might actually have invalidated from ones it never
+// touched at all.
+function collectDefRegs(instrs: IRInstr[], out: Set<string>): void {
+  for (const instr of instrs) {
+    switch (instr.op) {
+      case 'const':
+      case 'move':
+      case 'binop':
+      case 'unop':
+      case 'arrload':
+        out.add(instr.dest);
+        break;
+      case 'call':
+        if (instr.dest) out.add(instr.dest);
+        break;
+      case 'if':
+        collectDefRegs(instr.thenBody, out);
+        if (instr.elseBody) collectDefRegs(instr.elseBody, out);
+        break;
+      case 'while':
+        collectDefRegs(instr.condInstrs, out);
+        collectDefRegs(instr.body, out);
+        break;
+    }
+  }
+}
+
+// A fact `x < ref` (or `<=`) that held on entry to a loop is still valid
+// after it completes UNLESS the loop itself redefined `x` or `ref` -- e.g. a
+// windowed inner loop that only touches its own index variable must not
+// erase an outer loop's still-valid `i < len` fact just because *some*
+// while loop finished.
+function survivingCondBound(entryCondBound: Map<string, CondFact>, loopDefs: Set<string>): Map<string, CondFact> {
+  const out = new Map<string, CondFact>();
+  for (const [k, v] of entryCondBound) {
+    if (loopDefs.has(k) || loopDefs.has(v.ref)) continue;
+    out.set(k, v);
+  }
+  return out;
+}
+
 function clearCondFactsFor(name: string, state: AState): void {
   state.condBound.delete(name);
   for (const [k, v] of Array.from(state.condBound.entries())) {
@@ -277,8 +320,13 @@ function analyzeWhile(
   const bodyResult = analyzeList(instr.body, condResult.stateOut);
 
   // After the loop: the condition may be false (including zero iterations),
-  // so only the stabilized numeric superset survives; less-than facts don't.
-  const stateOut: AState = { ranges: candidate, condBound: new Map() };
+  // so THIS loop's own condition-derived fact never survives -- but any
+  // fact that was already valid on entry, about registers this loop never
+  // touched, still is (see survivingCondBound above).
+  const loopDefs = new Set<string>();
+  collectDefRegs(instr.condInstrs, loopDefs);
+  collectDefRegs(instr.body, loopDefs);
+  const stateOut: AState = { ranges: candidate, condBound: survivingCondBound(stateIn.condBound, loopDefs) };
 
   return {
     instr: { ...instr, condInstrs: condResult.instrs, body: bodyResult.instrs },

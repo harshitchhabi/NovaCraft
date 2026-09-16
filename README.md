@@ -28,6 +28,42 @@ npx ts-node src/cli.ts examples/sumArray.min --run
 The last command prints `15` (see "Running via the CLI" below for why
 `main` takes array parameters here).
 
+## A real application: moving-average anomaly detection
+
+`tools/anomaly-cli.ts` is a small but genuine application built on the
+compiler, not just a language demo: it flags anomalous points in a numeric
+time series (request latency, sensor readings, queue depth — anything a
+monitoring pipeline watches for spikes) using a moving-average deviation
+check compiled from `examples/anomalyDetect.min` straight to WebAssembly.
+
+```bash
+npm run anomaly -- data/sample-latency-ms.csv --window 3 --threshold 30
+```
+
+```
+Bounds checks [movingAvgFlag]: 2 inserted, 1 retained (50% eliminated)
+...
+60 points, window=3, threshold=30
+10 anomalies flagged:
+
+  [10] value=48
+  [11] value=54
+  [12] value=210
+  [13] value=195
+  ...
+```
+
+It's a genuine demonstration of the compiler's actual value, not just its
+existence: `movingAvgFlag` has two array accesses on the *same* array —
+`data[i]`, directly bounded by the surrounding loop's own condition, gets
+its `BoundsCheck` proven safe and eliminated; `data[j]`, a windowed read the
+analysis genuinely cannot relate back to the array's length, correctly keeps
+its check. Building this program is also what surfaced a real bug in
+`rangeAnalysis.ts` — see DEVLOG.md's "An inner loop was discarding an outer
+loop's still-valid fact" — where an unrelated inner loop was silently
+discarding the outer loop's proof, which this codebase now has a regression
+test for (`tests/rangeAnalysis.test.ts`, `tests/anomalyDetect.test.ts`).
+
 ## Pipeline
 
 ```
@@ -130,6 +166,7 @@ DEVLOG.md for the full rationale. `main` functions with no parameters (like
 | `examples/forSum.min` | `sumArray.min` rewritten with a `for` loop; desugars to the same IR, same elimination. |
 | `examples/classify.min` | An `if`/`else if`/`else` chain where every branch returns, as the function's last statement. |
 | `examples/scaleArray.min` | Reads and writes the same index each iteration; two `BoundsCheck`s eliminated per iteration instead of one. |
+| `examples/anomalyDetect.min` | Moving-average anomaly detection; the real application behind `npm run anomaly` (see above). One check eliminated, one genuinely retained, on the same array. |
 
 ## Memory layout
 

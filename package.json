@@ -10,7 +10,8 @@
     "build": "tsc -p .",
     "test": "jest",
     "novac": "ts-node src/cli.ts",
-    "benchmark": "ts-node benchmark/boundsCheckBenchmark.ts"
+    "benchmark": "ts-node benchmark/boundsCheckBenchmark.ts",
+    "anomaly": "ts-node tools/anomaly-cli.ts"
   },
   "license": "MIT",
   "devDependencies": {

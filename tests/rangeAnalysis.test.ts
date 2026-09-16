@@ -32,4 +32,21 @@ describe('Range analysis / bounds-check elimination', () => {
     expect(fnStats.inserted).toBe(1);
     expect(fnStats.retained).toBe(1);
   });
+
+  // Regression test for a bug found while building anomalyDetect.min: a
+  // while loop's exit unconditionally reset the WHOLE condBound map to
+  // empty, discarding not just its own condition-derived fact (which really
+  // does go stale) but any *unrelated* fact from an enclosing loop that it
+  // never touched. Here the outer `for` loop's `i < len` fact must survive
+  // the inner windowed `while` loop (which only ever touches `j`, `sum`, and
+  // its own temporaries) so the later direct `data[i]` access -- unlike the
+  // windowed `data[j]` access, which genuinely cannot be proven safe -- gets
+  // eliminated.
+  test('anomalyDetect.min: an outer loop\'s condBound fact survives an unrelated inner loop', () => {
+    const ir = optimize(toIRFromExample('anomalyDetect.min'));
+    const stats = computeBoundsStats(ir);
+    const fnStats = stats.perFunction.find((f) => f.name === 'movingAvgFlag')!;
+    expect(fnStats.inserted).toBe(2);
+    expect(fnStats.retained).toBe(1);
+  });
 });

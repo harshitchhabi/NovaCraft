@@ -159,6 +159,43 @@ CLI's `--run` flag chooses arguments for `main`, exactly as permitted by the
 spec ("adjust to whatever your main/print convention ends up being, but keep
 it consistent and documented").
 
+## An inner loop was discarding an outer loop's still-valid fact
+
+Found while building `examples/anomalyDetect.min` / `tools/anomaly-cli.ts`
+(moving-average anomaly detection — see README.md), the first real
+application built on the compiler rather than a language-feature demo. Its
+`movingAvgFlag` function has an outer `for (i = 0; i < len; ...)` loop whose
+body contains an inner windowed `while (j <= i + window)` loop, followed
+later in the same iteration by a direct `data[i]` access. `data[i]` should
+have been provably safe: the outer loop's own condition establishes the
+symbolic fact `i < len` (see the "condBound" design above), and nothing
+between establishing that fact and the `data[i]` access redefines `i` or
+`len`. It wasn't being eliminated.
+
+Root cause (`rangeAnalysis.ts`, `analyzeWhile`): the `stateOut` returned by
+*any* completed `while` loop unconditionally reset `condBound` to `new
+Map()`. This is correct for that loop's *own* condition-derived fact (once
+the loop exits, its condition is false, so `i < len` no longer holds for
+*that* loop) — but it also erased every *other*, unrelated fact that was
+already valid on entry, including ones about registers the loop's body
+never touches at all. Here, the outer loop's `i < len` fact was destroyed
+the moment the unrelated inner `while (j <= i + window)` loop finished,
+purely because *some* while loop had completed — even though that inner
+loop only ever reads/writes `j`, `sum`, and its own temporaries.
+
+Fix: `stateOut.condBound` is now computed by keeping every fact that held on
+entry to the loop (`stateIn.condBound`), minus only the facts whose left- or
+right-hand register was actually defined somewhere inside that loop's own
+`condInstrs`/`body` (`collectDefRegs` + `survivingCondBound`, mirroring the
+same "invalidate the registers a subtree actually defines" pattern already
+used by `constantFold.ts`'s `collectDefs` and `cse.ts`'s `collectDefRegs`).
+A loop's own condition-derived fact still doesn't survive its own exit,
+since the loop variable it's about is essentially always among the
+registers the loop redefines. Regression tests:
+`tests/rangeAnalysis.test.ts` (checks the elimination count directly) and
+`tests/anomalyDetect.test.ts` (checks the compiled WASM's behavior against
+an independent JS reference implementation).
+
 ## Common-subexpression elimination runs last, after range analysis
 
 `src/optimize/cse.ts` was added as a fourth optimization pass but placed

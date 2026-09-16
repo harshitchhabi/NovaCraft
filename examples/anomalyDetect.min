@@ -1,0 +1,44 @@
+// Moving-average anomaly detection over an integer time series: reports any
+// index whose value deviates from its local windowed average by more than
+// `threshold`. This is a small, real version of the check monitoring
+// pipelines run over metrics/logs (e.g. flagging a latency or sensor-reading
+// spike) -- see tools/anomaly-cli.ts for the CLI that feeds it real data.
+//
+// It also demonstrates both outcomes of range-analysis bounds-check
+// elimination in a single function, on the SAME array:
+//   - `data[i]` (guarded directly by the for-loop's own `i < len` condition)
+//     is proven safe and its BoundsCheck is eliminated.
+//   - `data[j]` (the windowed read, `j` ranging over `i - window .. i +
+//     window`) cannot be related back to `len` by the analysis's numeric or
+//     symbolic reasoning, so its BoundsCheck is kept -- correctly, since
+//     nothing actually proves it safe.
+func movingAvgFlag(data: int[], len: int, window: int, threshold: int) -> int {
+    let anomalies: int = 0;
+    for (let i: int = 0; i < len; i = i + 1) {
+        if (i >= window) {
+            if (i < len - window) {
+                let sum: int = 0;
+                let j: int = i - window;
+                while (j <= i + window) {
+                    sum = sum + data[j];
+                    j = j + 1;
+                }
+                let count: int = window * 2 + 1;
+                let mean: int = sum / count;
+                let diff: int = data[i] - mean;
+                if (diff < 0) {
+                    diff = 0 - diff;
+                }
+                if (diff > threshold) {
+                    print(i);
+                    anomalies = anomalies + 1;
+                }
+            }
+        }
+    }
+    return anomalies;
+}
+
+func main() -> int {
+    return 0;
+}
