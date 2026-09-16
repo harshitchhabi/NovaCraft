@@ -41,6 +41,47 @@ describe('Parser', () => {
     expect(first.message).toMatch(/^Syntax error at 3:5 -/);
   });
 
+  test('parses a `for` loop into a ForStmt with init/cond/update/body', () => {
+    const source = `func main() -> int {
+    let total: int = 0;
+    for (let i: int = 0; i < 10; i = i + 1) {
+        total = total + i;
+    }
+    return total;
+}
+`;
+    const { program, reporter } = parseSource(source);
+    expect(reporter.hasErrors()).toBe(false);
+    const body = program.functions[0].body.statements;
+    const forStmt = body.find((s) => s.kind === 'ForStmt');
+    expect(forStmt).toBeDefined();
+    if (forStmt?.kind === 'ForStmt') {
+      expect(forStmt.init?.name).toBe('i');
+      expect(forStmt.update?.target.name).toBe('i');
+    }
+  });
+
+  test('parses `else if` as a nested IfStmt inside the elseBlock', () => {
+    const source = `func classify(x: int) -> int {
+    if (x < 0) {
+        return 0;
+    } else if (x == 0) {
+        return 1;
+    } else {
+        return 2;
+    }
+}
+`;
+    const { program, reporter } = parseSource(source);
+    expect(reporter.hasErrors()).toBe(false);
+    const outer = program.functions[0].body.statements[0];
+    expect(outer.kind).toBe('IfStmt');
+    if (outer.kind === 'IfStmt') {
+      const nested = outer.elseBlock?.statements[0];
+      expect(nested?.kind).toBe('IfStmt');
+    }
+  });
+
   test('recovers from a syntax error and keeps parsing the rest of the file', () => {
     const source = `func broken() -> int {
     let x: int = ;

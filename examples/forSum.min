@@ -1,0 +1,19 @@
+// Same as sumArray.min but written with a `for` loop instead of a manual
+// `while` + counter. `for` is parser-level sugar (src/parser.ts,
+// parseForStmt) that desugars straight into the same structured `while` IR
+// node sumArray.min goes through (src/ir.ts, the 'ForStmt' case), so this
+// exercises the identical range-analysis/codegen path: the BoundsCheck on
+// arr[i] is provably safe and should be eliminated.
+func sumFor(arr: int[], len: int) -> int {
+    let total: int = 0;
+    for (let i: int = 0; i < len; i = i + 1) {
+        total = total + arr[i];
+    }
+    return total;
+}
+
+func main(arr: int[], len: int) -> int {
+    let total: int = sumFor(arr, len);
+    print(total);
+    return 0;
+}

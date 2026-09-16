@@ -3,11 +3,12 @@
 A compiler for **NovaCraft**, a small statically-typed imperative language,
 that compiles all the way down to real, executable WebAssembly. Every
 classical compiler stage is genuinely implemented and individually
-inspectable: lexing, parsing, semantic analysis, IR generation, three
-optimization passes (constant folding, dead-code elimination, and a
-range-analysis-based bounds-check elimination), linear-scan register
-allocation with spilling, explicit stack-frame management, and WebAssembly
-text codegen, assembled and actually run via Node's built-in `WebAssembly`.
+inspectable: lexing, parsing, semantic analysis, IR generation, four
+optimization passes (constant folding, dead-code elimination, a
+range-analysis-based bounds-check elimination, and common-subexpression
+elimination), linear-scan register allocation with spilling, explicit
+stack-frame management, and WebAssembly text codegen, assembled and actually
+run via Node's built-in `WebAssembly`.
 
 The standout feature: **every array access is automatically bounds-checked,
 and a compile-time range analysis proves and eliminates the checks that are
@@ -38,6 +39,8 @@ source (.min)
   -> Constant folding (src/optimize/constantFold.ts)
   -> Dead-code elim.  (src/optimize/deadCode.ts)
   -> Range analysis   (src/optimize/rangeAnalysis.ts)   bounds-check elimination
+  -> CSE               (src/optimize/cse.ts)   common-subexpression elimination
+  -> Dead-code elim.  (src/optimize/deadCode.ts)   (again, to clean up after CSE)
   -> Register alloc   (src/regalloc.ts)     linear scan, 4-register budget, spilling
   -> Codegen          (src/codegen.ts)      WebAssembly text (.wat) + source map
   -> Runtime harness  (runtime/harness.ts)  assemble (wabt) + instantiate + run
@@ -63,6 +66,17 @@ no array literals and no local array allocation (see DEVLOG.md). An array
 parameter is represented at the WebAssembly level as an `i32` base address
 into linear memory; its length is a separate `int` parameter, by
 convention the very next parameter in the list (`arr: int[], len: int`).
+
+`if`/`else` chains and `while` loops are the core control flow. Two more are
+parser-level sugar over them, adding no new IR shape (see DEVLOG.md):
+
+- `else if` — an `else` immediately followed by `if` parses as a single
+  nested `if` inside the `else` block, so any-length `if`/`else if`/.../`else`
+  chains work.
+- `for (init; cond; update) { body }` — desugars straight into a scoped
+  `let` followed by the same structured `while` IR node a hand-written
+  `while` loop produces, so it goes through the exact same range-analysis
+  and codegen path (`examples/forSum.min`).
 
 Full grammar is in `NOVACRAFT_BUILD_PROMPT.md`.
 
@@ -113,6 +127,9 @@ DEVLOG.md for the full rationale. `main` functions with no parameters (like
 | `examples/fib.min` | Recursive Fibonacci; no arrays — exercises the call/stack-frame machinery and register pressure. |
 | `examples/unsafe_index.min` | Indexes with a parameter unrelated to the loop/length; its `BoundsCheck` cannot be proven and survives. |
 | `examples/bounds_violation.min` | Indexes with a constant (100) with no relation to the array's length; traps at runtime against any short test array. |
+| `examples/forSum.min` | `sumArray.min` rewritten with a `for` loop; desugars to the same IR, same elimination. |
+| `examples/classify.min` | An `if`/`else if`/`else` chain where every branch returns, as the function's last statement. |
+| `examples/scaleArray.min` | Reads and writes the same index each iteration; two `BoundsCheck`s eliminated per iteration instead of one. |
 
 ## Memory layout
 
@@ -165,12 +182,19 @@ Bounds checks [sumArray]: 1 inserted, 0 retained (100% eliminated)
 ### Does the elimination actually matter?
 
 Proving a check redundant is only interesting if removing it is actually
-faster. `benchmark/boundsCheckBenchmark.ts` compiles `sumArray.min` **twice**
-from the same source — once normally (its check eliminated) and once with
-`--no-bounds-elim`'s underlying option (the check retained, running on every
-single array access) — assembles both to real WebAssembly, and times
-summing a 4,000,000-element array over 20 calls each, after a warmup. Run it
-with:
+faster. `benchmark/boundsCheckBenchmark.ts` compiles two programs **each
+twice** from the same source — once normally (their checks eliminated) and
+once with `--no-bounds-elim`'s underlying option (every check retained,
+running on every single array access) — assembles all four to real
+WebAssembly, and times each variant over a 4,000,000-element array across 20
+calls, after a warmup:
+
+- `sumArray.min` — one `BoundsCheck` per loop iteration (a read).
+- `scaleArray.min` — two `BoundsCheck`s per loop iteration (a read and a
+  write to the same index), showing the benefit scale with how many checks
+  a hot loop actually contains.
+
+Run it with:
 
 ```bash
 npm run benchmark
@@ -179,25 +203,48 @@ npm run benchmark
 Representative output on this machine:
 
 ```
-Checks eliminated (range analysis ON):  4.2 ms/call avg
-Checks retained   (range analysis OFF): 5.1 ms/call avg
+--- sumArray (1 check/iteration: read) ---
+Checks eliminated (range analysis ON):  12.35 ms/call avg
+Checks retained   (range analysis OFF): 16.42 ms/call avg
+Speedup from elimination: 1.33x  (32.9% overhead removed)
+Both variants computed the correct result: 4000000.
 
-Speedup from elimination: 1.2x  (17-26% overhead removed)
-Both variants computed the correct sum: 4000000.
+--- scaleArray (2 checks/iteration: read + write) ---
+Checks eliminated (range analysis ON):  10.20 ms/call avg
+Checks retained   (range analysis OFF): 17.82 ms/call avg
+Speedup from elimination: 1.75x  (74.7% overhead removed)
+Both variants computed the correct result: 1048576.
 ```
 
-Both variants are verified to compute the identical, correct sum before any
-timing number is trusted — the benchmark is not just measuring two programs
-that happen to run at different speeds, it's measuring the *same* proven
-result reached with and without paying for the check.
+Both variants of each scenario are verified to compute the identical,
+correct result before any timing number is trusted — the benchmark is not
+just measuring two programs that happen to run at different speeds, it's
+measuring the *same* proven result reached with and without paying for the
+check(s).
+
+## Common-subexpression elimination
+
+`src/optimize/cse.ts` runs after range analysis (deliberately — CSE could
+otherwise rewrite the exact `binop` instruction rangeAnalysis.ts pattern-
+matches for its `x < y` "less-than fact" into a `move`, defeating that
+match). Within a single straight-line instruction list, a `binop` that
+recomputes the same operator and operands as an earlier still-live one is
+replaced with a `move` from that earlier result instead of being
+recomputed; as with constant folding and dead-code elimination, this does
+not cross `if`/`while` boundaries, since a branch or loop body may execute
+conditionally or repeatedly. A final dead-code elimination pass then cleans
+up any now-unused intermediate the rewrite left behind.
 
 ## Tests
 
 `npm test` runs the full Jest suite: one file per pipeline stage
 (`tests/lexer.test.ts`, `parser.test.ts`, `semantic.test.ts`, `ir.test.ts`,
-`rangeAnalysis.test.ts`, `regalloc.test.ts`), `tests/compile.test.ts`
-(guarding the `--no-bounds-elim` path the benchmark relies on), plus
-`tests/e2e.test.ts`
+`rangeAnalysis.test.ts`, `regalloc.test.ts`), `tests/cse.test.ts` (verifying
+a duplicate expression is actually folded to a `move`, and that doing so
+doesn't change the result), `tests/compile.test.ts` (guarding the
+`--no-bounds-elim` path the benchmark relies on), plus `tests/e2e.test.ts`
 covering real WebAssembly execution (the happy-path sum, recursive
 Fibonacci, a runtime bounds-violation trap with the exact diagnostic
-message, and a CLI smoke test).
+message, the `for`/`else if` sugar, and a CLI smoke test). CI
+(`.github/workflows/ci.yml`) runs the type checker, the full suite, and a
+production build on every push/PR against Node 18 and 20.

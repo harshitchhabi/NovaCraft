@@ -160,6 +160,15 @@ class FuncCodegen {
 
     this.emitList(this.fn.body, 1);
 
+    // Semantic analysis guarantees every path already returned, so this is
+    // dead code -- but WASM's validator has no reachability analysis of its
+    // own: a bare `if`/`else` (no declared result type) whose branches both
+    // `return` still leaves the validator expecting a value to fall off the
+    // end of the function when that `if` is the last statement. `unreachable`
+    // is always well-typed against any expected result, closing that gap
+    // without affecting any program that actually reaches it.
+    this.emit('  unreachable');
+
     this.emit(')');
     return { wat: this.lines, sourceMap: this.sourceMapEntries };
   }

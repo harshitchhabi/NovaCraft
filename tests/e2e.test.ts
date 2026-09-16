@@ -51,6 +51,22 @@ describe('Codegen + execution (end to end)', () => {
     writeIntArray(h.memory, 0, [1, 2, 3, 4, 5]);
     expect(() => callFunction(h, 'unsafeGet', [0, 5, 99])).toThrow(WebAssembly.RuntimeError);
   });
+
+  test('forSum.min: `for` desugars to the same while IR, and its BoundsCheck is eliminated', async () => {
+    const mod = compileExampleToModule('forSum.min');
+    const h = await assembleAndInstantiate(mod.wat);
+    writeIntArray(h.memory, 0, [1, 2, 3, 4, 5]);
+    expect(callFunction(h, 'sumFor', [0, 5])).toBe(15);
+  });
+
+  test('classify.min: a terminal else-if chain where every branch returns compiles and runs', async () => {
+    const mod = compileExampleToModule('classify.min');
+    const h = await assembleAndInstantiate(mod.wat); // throws if wabt rejects the module
+    expect(callFunction(h, 'classify', [-5])).toBe(0);
+    expect(callFunction(h, 'classify', [0])).toBe(1);
+    expect(callFunction(h, 'classify', [5])).toBe(2);
+    expect(callFunction(h, 'classify', [50])).toBe(3);
+  });
 });
 
 describe('CLI smoke test', () => {

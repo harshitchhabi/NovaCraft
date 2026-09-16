@@ -8,6 +8,7 @@ import { generateIR, IRProgram } from './ir';
 import { constantFold } from './optimize/constantFold';
 import { deadCodeElimination } from './optimize/deadCode';
 import { rangeAnalysis } from './optimize/rangeAnalysis';
+import { commonSubexprElimination } from './optimize/cse';
 import { generateModule } from './codegen';
 import { CodegenResult } from './codegen';
 import { ErrorReporter, CompilerError } from './errors';
@@ -64,6 +65,12 @@ export function compileProgram(source: string, opts: CompileOptions = {}): Compi
     ir = rangeAnalysis(ir);
     stages.push({ label: 'after range analysis (bounds-check elimination)', ir });
   }
+
+  ir = commonSubexprElimination(ir);
+  stages.push({ label: 'after common-subexpression elimination', ir });
+
+  ir = deadCodeElimination(ir);
+  stages.push({ label: 'after final dead-code elimination', ir });
 
   const codegen = generateModule(ir, regBudget);
   return { program, stages, finalIR: ir, codegen };

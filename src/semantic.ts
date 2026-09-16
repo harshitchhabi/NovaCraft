@@ -101,6 +101,8 @@ export class SemanticAnalyzer {
         return this.checkIfStmt(stmt, scope);
       case 'WhileStmt':
         return this.checkWhileStmt(stmt, scope);
+      case 'ForStmt':
+        return this.checkForStmt(stmt, scope);
       case 'ReturnStmt':
         return this.checkReturnStmt(stmt, scope);
       case 'PrintStmt':
@@ -181,6 +183,22 @@ export class SemanticAnalyzer {
     }
     this.checkBlock(stmt.body, scope);
     // A while loop cannot statically guarantee a return (may not execute).
+    return false;
+  }
+
+  private checkForStmt(stmt: AST.ForStmt, parentScope: Scope): boolean {
+    // Own scope, like a while body, so the init variable doesn't leak into
+    // the enclosing block -- but declared one level up from the body block
+    // so the body can see and mutate it.
+    const scope = new Scope(parentScope);
+    if (stmt.init) this.checkVarDecl(stmt.init, scope);
+    const condType = this.checkExpr(stmt.cond, scope);
+    if (condType && !typesEqual(condType, primType('bool'))) {
+      this.err(stmt.pos, `'for' condition must be of type 'bool', got '${typeToString(condType)}'`);
+    }
+    if (stmt.update) this.checkAssignStmt(stmt.update, scope);
+    this.checkBlock(stmt.body, scope);
+    // A for loop cannot statically guarantee a return (may not execute).
     return false;
   }
 

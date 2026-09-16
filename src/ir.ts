@@ -202,6 +202,21 @@ class FuncIRGen {
         out.push({ op: 'while', condInstrs, cond, body, pos: stmt.pos });
         return;
       }
+      case 'ForStmt': {
+        // Desugars to the existing `while` IR node -- a for-loop is just a
+        // while-loop with a scoped init and an update appended to the body,
+        // so every downstream pass (range analysis, regalloc, codegen)
+        // handles it for free with no new IR shape.
+        this.pushScope();
+        if (stmt.init) this.genStatement(stmt.init, out);
+        const condInstrs: IRInstr[] = [];
+        const cond = this.genExpr(stmt.cond, condInstrs);
+        const body = this.genBlock(stmt.body);
+        if (stmt.update) this.genStatement(stmt.update, body);
+        out.push({ op: 'while', condInstrs, cond, body, pos: stmt.pos });
+        this.popScope();
+        return;
+      }
       case 'ReturnStmt': {
         const value = stmt.value ? this.genExpr(stmt.value, out) : null;
         out.push({ op: 'return', value, pos: stmt.pos });

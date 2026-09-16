@@ -158,3 +158,76 @@ harness-side convention, not a language feature — it only affects how the
 CLI's `--run` flag chooses arguments for `main`, exactly as permitted by the
 spec ("adjust to whatever your main/print convention ends up being, but keep
 it consistent and documented").
+
+## Common-subexpression elimination runs last, after range analysis
+
+`src/optimize/cse.ts` was added as a fourth optimization pass but placed
+*after* `rangeAnalysis`, not alongside `constantFold`/`deadCodeElimination`
+earlier in the pipeline (see `compile.ts`). Reason: `rangeAnalysis.ts`'s
+`extractCondFact` proves a `while` loop's own "less-than fact" by pattern-
+matching a specific `binop` instruction (`i.op === 'binop' && (i.bop === '<'
+|| i.bop === '<=')`) inside the loop's `condInstrs`. If CSE ran first and
+happened to rewrite that comparison into a `move` (aliasing an identical
+comparison computed earlier in the same instruction list), the pattern match
+would silently fail and a provably-safe `BoundsCheck` would stop being
+eliminated — a correct but much weaker compiler, and a regression that would
+only show up as "elimination got worse" rather than a crash. Running CSE
+after range analysis sidesteps the interaction entirely: nothing downstream
+of CSE inspects instruction *shape* the way `extractCondFact` does. A plain
+dead-code elimination pass runs one more time after CSE, since replacing a
+`binop` with a `move` can leave the `binop`'s original operands (or, after
+their own defining instructions, transitively more code) unused.
+
+## `for` loops and `else if` are parser-level sugar, not new IR shapes
+
+Both were added without touching `ir.ts`'s `IRInstr` union or any
+downstream pass:
+
+- `else if` parses as an ordinary `else` block containing a single nested
+  `if` statement (`parser.ts`, `parseIfStmt`) — the existing recursive
+  statement handling in every later stage already does the right thing with
+  a nested `if`, so no other file changes.
+- `for (init; cond; update) { body }` desugars during IR generation
+  (`ir.ts`, the `'ForStmt'` case) into exactly the same `while` IR node a
+  hand-written `while` loop produces: `init` runs once in the enclosing
+  scope, then a `WhileInstr` is emitted whose `body` is the for-loop's body
+  with `update` appended. This means range analysis, register allocation,
+  and codegen handle `for` for free — they only ever see `while`. The
+  alternative (a first-class `ForInstr`) was rejected because it would have
+  needed its own copy of every one of those passes' loop-handling logic for
+  no behavioral difference.
+
+`else if` is a parser-only rewrite (semantic analysis and IR generation
+never know it happened); `for` is genuinely desugared at IR generation, one
+level later, because its `init` needs a scope of its own (`semantic.ts`'s
+`checkForStmt` creates a `Scope` that outlives the body block, the same
+relationship `while`'s condition variable would have if the language
+allowed loop-scoped declarations there) — sugaring it any earlier, in the
+parser, would have required either inventing a block-statement AST node
+that doesn't otherwise exist or leaking the loop variable into the
+enclosing block.
+
+## Every function ends with a trailing `unreachable`
+
+Discovered via `examples/classify.min` (an `if`/`else if`/`else` chain,
+every branch returning, as a function's last statement): semantic analysis
+already accepted this shape (`checkIfStmt` treats `thenReturns &&
+elseReturns && elseBlock !== null` as a guaranteed return), but codegen
+produced a WASM module that failed `wabt`'s validator with "type mismatch in
+implicit return". The cause: `emitIf` (`codegen.ts`) emits a bare `if`
+with no declared result type, since neither branch leaves a value on the
+stack (each ends in an explicit `return` instead). WASM's validator has no
+whole-program reachability analysis of its own — a block's type is exactly
+its declared immediate, regardless of whether every path inside it
+diverges — so when that untyped `if` is the last instruction in a function
+declared `(result i32)`, the validator complains about the implicit return
+at the end of the function body, even though the `if` can in fact never
+fall through. The fix: `FuncCodegen.generate()` (`codegen.ts`) now emits a
+trailing `unreachable` after the function body, unconditionally. It is
+genuinely dead code whenever the function actually falls off the end of its
+body (semantic analysis guarantees every path already returned before that
+point), but `unreachable` type-checks against any expected result type, so
+it closes the validator's gap for free. This was a latent bug that any
+sufficiently deep terminal `if`/`else` chain could have hit even without the
+`for`/`else if` work — `else if` just made it far more likely to occur in
+ordinary code.

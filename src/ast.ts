@@ -66,6 +66,7 @@ export type Statement =
   | AssignStmt
   | IfStmt
   | WhileStmt
+  | ForStmt
   | ReturnStmt
   | PrintStmt
   | ExprStmt;
@@ -102,6 +103,15 @@ export interface IfStmt {
 export interface WhileStmt {
   kind: 'WhileStmt';
   cond: Expression;
+  body: Block;
+  pos: Pos;
+}
+
+export interface ForStmt {
+  kind: 'ForStmt';
+  init: VarDecl | null;
+  cond: Expression;
+  update: AssignStmt | null;
   body: Block;
   pos: Pos;
 }

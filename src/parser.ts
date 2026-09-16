@@ -161,6 +161,8 @@ export class Parser {
         return this.parseIfStmt();
       case TokenType.WHILE:
         return this.parseWhileStmt();
+      case TokenType.FOR:
+        return this.parseForStmt();
       case TokenType.RETURN:
         return this.parseReturnStmt();
       case TokenType.PRINT:
@@ -230,7 +232,14 @@ export class Parser {
     const thenBlock = this.parseBlock();
     let elseBlock: AST.Block | null = null;
     if (this.match(TokenType.ELSE)) {
-      elseBlock = this.parseBlock();
+      if (this.check(TokenType.IF)) {
+        // `else if ...` desugars to an else-block containing a single nested
+        // `if` statement -- no separate grammar/IR support needed.
+        const elseIf = this.parseIfStmt();
+        elseBlock = { statements: [elseIf] };
+      } else {
+        elseBlock = this.parseBlock();
+      }
     }
     return { kind: 'IfStmt', cond, thenBlock, elseBlock, pos: this.pos_(ifTok) };
   }
@@ -242,6 +251,43 @@ export class Parser {
     this.expect(TokenType.RPAREN, "expected ')' after condition");
     const body = this.parseBlock();
     return { kind: 'WhileStmt', cond, body, pos: this.pos_(whileTok) };
+  }
+
+  private parseForStmt(): AST.ForStmt {
+    const forTok = this.expect(TokenType.FOR, "expected 'for'");
+    this.expect(TokenType.LPAREN, "expected '(' after 'for'");
+    let init: AST.VarDecl | null = null;
+    if (this.check(TokenType.SEMI)) {
+      this.advance();
+    } else {
+      init = this.parseVarDecl(); // consumes its own trailing ';'
+    }
+    const cond = this.parseExpression();
+    this.expect(TokenType.SEMI, "expected ';' after for-loop condition");
+    let update: AST.AssignStmt | null = null;
+    if (!this.check(TokenType.RPAREN)) {
+      update = this.parseForUpdate();
+    }
+    this.expect(TokenType.RPAREN, "expected ')' after for-loop clauses");
+    const body = this.parseBlock();
+    return { kind: 'ForStmt', init, cond, update, body, pos: this.pos_(forTok) };
+  }
+
+  // A for-loop's update clause: a plain assignment with no trailing ';'
+  // (the enclosing '(' ... ')' delimits it instead).
+  private parseForUpdate(): AST.AssignStmt {
+    const startTok = this.peek();
+    const nameTok = this.expect(TokenType.IDENT, 'expected identifier in for-loop update');
+    let index: AST.Expression | null = null;
+    if (this.check(TokenType.LBRACKET)) {
+      this.advance();
+      index = this.parseExpression();
+      this.expect(TokenType.RBRACKET, "expected ']' after array index");
+    }
+    this.expect(TokenType.EQ, "expected '=' in for-loop update");
+    const value = this.parseExpression();
+    const lvalue: AST.LValue = { name: nameTok.lexeme, index, pos: this.pos_(nameTok) };
+    return { kind: 'AssignStmt', target: lvalue, value, pos: this.pos_(startTok) };
   }
 
   private parseReturnStmt(): AST.ReturnStmt {

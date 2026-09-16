@@ -1,0 +1,19 @@
+// Reads and writes the SAME index every iteration (`arr[i] = arr[i] * 2`),
+// so range analysis must prove and eliminate TWO BoundsChecks per iteration
+// (one for the read, one for the write) instead of sumArray.min's one --
+// used by benchmark/boundsCheckBenchmark.ts as a second, heavier-per-iteration
+// scenario alongside sumArray.min.
+func scaleArray(arr: int[], len: int) -> int {
+    let i: int = 0;
+    while (i < len) {
+        arr[i] = arr[i] * 2;
+        i = i + 1;
+    }
+    return arr[0];
+}
+
+func main(arr: int[], len: int) -> int {
+    let result: int = scaleArray(arr, len);
+    print(result);
+    return 0;
+}
