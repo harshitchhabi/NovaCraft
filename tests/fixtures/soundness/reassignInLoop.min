@@ -1,0 +1,39 @@
+// Audit case (c): `len` or the index reassigned inside the loop body.
+func shrinkLen(arr: int[], len: int) -> int {
+    let i: int = 0;
+    let s: int = 0;
+    while (i < len) {
+        len = len - 1;
+        s = s + arr[i];
+        i = i + 1;
+    }
+    return s;
+}
+
+func bumpIndex(arr: int[], len: int) -> int {
+    let i: int = 0;
+    let s: int = 0;
+    while (i < len) {
+        i = i + 1;
+        s = s + arr[i];
+    }
+    return s;
+}
+
+// Reassigning len BEFORE the use but re-establishing the fact via the loop
+// condition on each iteration is fine: arr[i] is checked against the
+// current len, and the condition is re-evaluated each time.
+func lenThenUse(arr: int[], len: int) -> int {
+    let i: int = 0;
+    let s: int = 0;
+    while (i < len) {
+        s = s + arr[i];
+        len = len - 1;
+        i = i + 1;
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

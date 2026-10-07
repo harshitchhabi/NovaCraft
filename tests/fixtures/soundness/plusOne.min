@@ -1,0 +1,31 @@
+// Required outcome: arr[i + 1] inside `while (i < len - 1)`.
+//
+// Without any information about `len`, this is NOT provable under i32
+// semantics: for len == INT_MIN, `len - 1` wraps to INT_MAX, the loop is
+// entered with i == 0, and the full-check program traps at arr[1]
+// (1 >= INT_MIN). plusOneGuarded adds the guard that rules that out.
+func plusOne(arr: int[], len: int) -> int {
+    let i: int = 0;
+    let s: int = 0;
+    while (i < len - 1) {
+        s = s + arr[i + 1];
+        i = i + 1;
+    }
+    return s;
+}
+
+func plusOneGuarded(arr: int[], len: int) -> int {
+    let s: int = 0;
+    if (len > 0) {
+        let i: int = 0;
+        while (i < len - 1) {
+            s = s + arr[i + 1] - arr[i];
+            i = i + 1;
+        }
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

@@ -1,0 +1,19 @@
+// Required outcome: arr[i*m + j] in a doubly nested loop with a separate
+// len is NOT proven (nothing relates n*m to len).
+func matSum(arr: int[], len: int, n: int, m: int) -> int {
+    let s: int = 0;
+    let i: int = 0;
+    while (i < n) {
+        let j: int = 0;
+        while (j < m) {
+            s = s + arr[i * m + j];
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

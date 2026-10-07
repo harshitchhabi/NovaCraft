@@ -3,20 +3,34 @@
 // single `const` instruction, and folds immediate initializers through moves.
 import { IRInstr, IRValue, IRProgram, imm } from '../ir';
 
-function evalBinop(bop: string, l: number, r: number, type: string): number | null {
+const INT_MIN = -2147483648;
+
+// Folds with the exact semantics of the WebAssembly instruction codegen
+// emits: i32 arithmetic wraps (two's complement), f32 arithmetic rounds each
+// operand and the result to single precision. Operations that trap at
+// runtime (integer division by zero, INT_MIN / -1) are left unfolded.
+// `type` is the result type, so for comparisons the operand type is `operandType`.
+function evalBinop(bop: string, l: number, r: number, type: string, operandType: string): number | null {
+  if (operandType === 'float') {
+    l = Math.fround(l);
+    r = Math.fround(r);
+  }
+  const arith = (v: number): number => (operandType === 'float' ? Math.fround(v) : v | 0);
   switch (bop) {
     case '+':
-      return l + r;
+      return arith(l + r);
     case '-':
-      return l - r;
+      return arith(l - r);
     case '*':
-      return l * r;
+      return operandType === 'float' ? Math.fround(l * r) : Math.imul(l, r);
     case '/':
       if (r === 0) return null; // don't fold division by zero; let it fail at runtime
-      return type === 'int' ? Math.trunc(l / r) : l / r;
+      if (type !== 'int') return arith(l / r);
+      if (l === INT_MIN && r === -1) return null; // traps (integer overflow) at runtime
+      return Math.trunc(l / r) | 0;
     case '%':
       if (r === 0) return null;
-      return type === 'int' ? l % r : l % r;
+      return (l % r) | 0;
     case '==':
       return l === r ? 1 : 0;
     case '!=':
@@ -100,7 +114,7 @@ function foldList(instrs: IRInstr[]): IRInstr[] {
         const left = foldValue(instr.left, constMap);
         const right = foldValue(instr.right, constMap);
         if (left.kind === 'imm' && right.kind === 'imm') {
-          const result = evalBinop(instr.bop, left.value, right.value, instr.type);
+          const result = evalBinop(instr.bop, left.value, right.value, instr.type, left.type);
           if (result !== null) {
             constMap.set(instr.dest, result);
             out.push({ op: 'const', dest: instr.dest, value: result, type: instr.type, pos: instr.pos });
@@ -114,7 +128,8 @@ function foldList(instrs: IRInstr[]): IRInstr[] {
       case 'unop': {
         const src = foldValue(instr.src, constMap);
         if (src.kind === 'imm') {
-          const result = instr.uop === '-' ? -src.value : src.value === 0 ? 1 : 0;
+          const result =
+            instr.uop === '!' ? (src.value === 0 ? 1 : 0) : instr.type === 'float' ? -Math.fround(src.value) : -src.value | 0;
           constMap.set(instr.dest, result);
           out.push({ op: 'const', dest: instr.dest, value: result, type: instr.type, pos: instr.pos });
           break;

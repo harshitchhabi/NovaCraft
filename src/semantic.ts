@@ -221,6 +221,14 @@ export class SemanticAnalyzer {
   private checkExpr(expr: AST.Expression, scope: Scope): NovaType | null {
     switch (expr.kind) {
       case 'IntLiteral':
+        // Integers are i32. 2147483648 is accepted (and wraps to INT_MIN) so
+        // that `-2147483648` can be written; anything larger cannot be
+        // represented and would otherwise produce an invalid `i32.const`.
+        if (expr.value > 2147483648) {
+          this.err(expr.pos, `integer literal ${expr.value} is out of range for 'int' (32-bit)`);
+        } else if (expr.value === 2147483648) {
+          expr.value = -2147483648;
+        }
         expr.type = primType('int');
         return expr.type;
       case 'FloatLiteral':

@@ -268,3 +268,33 @@ it closes the validator's gap for free. This was a latent bug that any
 sufficiently deep terminal `if`/`else` chain could have hit even without the
 `for`/`else if` work — `else if` just made it far more likely to occur in
 ordinary code.
+
+## Audit (milestone A0) decisions
+
+Full findings in `docs/AUDIT.md`. One line per decision the improvement
+spec left open:
+
+- Range analysis intervals are clamped to i32: any `+`/`-`/negation whose
+  exact interval leaves [INT_MIN, INT_MAX] becomes the full range ("could
+  wrap"), rather than modelling wraparound precisely.
+- The loop fixed point now runs until verified stable (cap 1000 rounds,
+  fallback: every register the loop defines becomes unknown) instead of a
+  fixed 4 rounds.
+- Facts from before a loop are visible inside the loop only if the loop
+  redefines neither register (they must hold on every back-edge, not just
+  the first iteration).
+- Branch refinement for `if`/`while` uses only the comparison that is the
+  instruction immediately before the branch, so no operand can have been
+  redefined in between.
+- `arr[i+1]` under `while (i < len - 1)` is proven only when `len - 1`
+  cannot wrap (e.g. under `if (len > 0)`); proving it for unconstrained
+  `len` is unsound for `len == INT_MIN`.
+- Constant folding matches the emitted instruction exactly (i32 wrap,
+  f32 rounding) and leaves trapping operations unfolded.
+- Dead-code elimination keeps an unused int `/` or `%` whose divisor could
+  trap.
+- Int literal 2147483648 is accepted and wraps to INT_MIN (so
+  `-2147483648` is writable); larger literals are a semantic error.
+- The differential fuzz harness runs each case in a worker thread with a
+  400 ms budget; full-check runs that time out are counted and skipped,
+  not compared.
