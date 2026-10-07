@@ -298,6 +298,47 @@ check(s).
 writes `results/RESULTS.md`; `npm run eval:mutation` runs the preregistered
 mutation-corpus evaluation (`docs/PREREGISTRATION.md`) and writes
 `results/mutation/RESULTS.md`. Both reports are generated from raw CSVs.
+The kernels are small NovaCraft ports of PolyBench-style kernels, not
+PolyBench; see `docs/LIMITATIONS.md` before reading anything into the
+numbers.
+
+Mutation corpus: 305 triggerable mutants of the 16 kernels. Brackets are
+95% bootstrap CIs over kernels. Cost is checks + loop-versioning guards
+executed on the unmutated kernels, as a share of `full`'s checks. Source:
+`results/mutation/RESULTS.md`.
+
+| config | detection | silent corruption | cost |
+|---|---|---|---|
+| `full` | 100.0% | 0.0% | 100.0% |
+| `proof` | 100.0% | 0.0% | 79.8% |
+| `strict` | 100.0% | 0.0% | 44.7% |
+| `balanced` | 74.8% [66.4%, 82.2%] | 4.3% [1.5%, 8.2%] | 24.2% |
+| `chuang` | 31.5% [22.4%, 40.5%] | 0.0% | 22.8% |
+| `budget:0.5` | 60.0% [47.5%, 72.1%] | 5.2% [1.5%, 9.7%] | 12.9% |
+| `performance` | 22.6% [15.5%, 30.5%] | 8.9% [4.1%, 14.2%] | 6.9% |
+| `none` | 0.0% | 28.9% [20.8%, 37.2%] | 0.0% |
+
+The two preregistered hypotheses are about **detection per cost**.
+
+- **H1 (supported).** `strict` (loop versioning, guards counted) costs
+  less than `proof`: 44.7% vs 79.8%, a difference of 35.1 pp
+  [14.7, 56.7]. Its per-input outcomes are identical to `proof` on every
+  mutant, including 0.0% silent corruption for both.
+- **H2 (supported, both families).** At `chuang`'s cost, the threshold and
+  budget sweeps detect more mutants than `chuang`:
+  - threshold: 70.6% vs 31.5% (+39.1 pp [9.2, 62.5]);
+  - budget: 79.1% vs 31.5% (+47.6 pp [29.3, 63.4]).
+
+  These are interpolated points on the sweep curves (`docs/LIMITATIONS.md`).
+  This does not make them safer than `chuang`. `chuang` has 0.0% silent
+  corruption, while `balanced` corrupts memory silently in 4.3% of mutants
+  (mainly through omitted internal writes with a partial proof).
+  H2's detection metric weights out-of-bounds reads and writes equally.
+
+No runtime claim is made: run-to-run timing noise was 38.7%
+(`results/RESULTS.md`). Formal description and proof sketches:
+`docs/FORMAL.md`; related work: `docs/RELATED_WORK.md`; follow-ups:
+`docs/FUTURE.md`.
 
 ## Common-subexpression elimination
 

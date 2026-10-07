@@ -474,3 +474,38 @@ size per configuration. Only the report changed: the raw A3 CSVs and
   Deviations 4 in the preregistration for the secondary attribution.
 - New policy ideas from these results went to `docs/FUTURE.md`, not into
   the code.
+
+## Milestone A4: tests and docs
+
+- How results are stated: H1 and H2 are hypotheses about **detection per
+  cost** (cost = checks + guards executed). Wherever a headline detection
+  number appears (README.md, docs/LIMITATIONS.md), silent corruption is
+  given next to it. The risk-adaptive policies are not described as safer
+  than `chuang`. On the mutation corpus `chuang` has 0.0% silent corruption
+  and `balanced` 4.3%. Every `balanced` corruption involves an omitted
+  internal write with a partial proof (R = 0.425 < 0.5).
+- Strict-equivalence and soundness tests (`tests/strictEquiv.test.ts`,
+  `tests/analysisSoundness.test.ts`) cover examples/, bench/, bench/bugs/
+  and the fixtures. Their first run failed on bench kernels for inputs
+  whose length argument was larger than the real array (e.g. `len =
+  INT_MAX` for a 6-element array). Checks trust the length argument, so
+  such a program's checked accesses can reach any address in linear
+  memory. An index near INT_MAX wraps the byte address to just below the
+  array, so even arrays placed above the stack do not help. The writes
+  reach the spill stack, after which two builds with different register
+  allocation diverge and spilled loop variables are corrupted. This is
+  not an analysis bug. The A4 tests therefore use length arguments no
+  larger than the real array, with all other ints (loop bounds included)
+  still fuzzed with 0, +-1, INT_MAX and INT_MIN. The limitation is
+  documented in docs/LIMITATIONS.md and pinned by a test. The
+  differential harness gained an optional array base above the stack;
+  the earlier tests keep their old layout and inputs.
+- The spec's soundness property "no out-of-bounds access at a check that
+  proof/strict marked proven **or hoisted**" holds for proven sites but not
+  for hoisted ones. A hoisted check fires under `full` whenever the guard
+  is false, and `strict` then runs the slow copy that keeps it. The test
+  asserts the property that does hold (identical trap in strict), and
+  asserts that hoisted checks do fire on some inputs.
+- Monotonicity is a fast-check property: 300 runs, seed 20261007, random
+  program, weights in [0, 1] and tau pairs in [0, 1.2].
+- `fast-check` added as a dev dependency.

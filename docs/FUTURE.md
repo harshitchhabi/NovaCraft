@@ -4,14 +4,24 @@ Recorded instead of being tried, so that no policy is tuned on the
 mutation-corpus results (docs/PREREGISTRATION.md). Each would need its own
 preregistered evaluation on new data.
 
-- **Write floor.** In the mutation corpus (results/mutation/RESULTS.md) every
-  silent corruption under the risk-adaptive policies came from an omitted
-  check, and `chuang`, which never omits a write, had no silent corruption,
-  while `balanced` and `budget:0.5` did. A policy that never omits writes
-  (chuang's floor) and uses the risk score only to rank reads would combine
-  chuang's zero-corruption property with the threshold/budget policies'
-  higher detection. The risk score currently lets internal writes with a
-  partial proof (P=0, C=0.5, W=1, R=0.425) fall below tau = 0.5.
+- **Write floor ("never omit writes") - proposed follow-up, not
+  implemented.** In the mutation corpus (results/mutation/RESULTS.md),
+  `chuang`, which never omits a write, had 0.0% silent corruption.
+  `balanced` (4.3%), `performance` (8.9%) and the budget policies did not.
+  Every `balanced` corruption involves an omitted internal write with a
+  partial proof (R = 0.425 < tau = 0.5). The proposal is a policy that
+  never omits writes and uses the risk score only to rank reads.
+
+  Evaluating it on the current mutation corpus would be tuning on the data
+  that suggested it, so it needs:
+  1. a fresh, held-out mutant set, generated with a new seed (new fuzzed
+     inputs, and if possible new kernels), before the policy is run on it;
+  2. a new preregistration fixing a severity-weighted metric, so that
+     silent corruption of memory counts more than a missed out-of-bounds
+     read, together with the hypotheses and the comparison against
+     `chuang` and `balanced`.
+
+  Until then, no claim is made about it.
 - **Read-then-write coupling.** Many silent corruptions are attributed to an
   omitted read whose index is later reused by an omitted write in the same
   iteration (bubble sort's `arr[j]` / `arr[j + 1]`). Keeping a read's check
