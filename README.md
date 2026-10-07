@@ -12,10 +12,14 @@ run via Node's built-in `WebAssembly`.
 
 The standout feature: **every array access is automatically bounds-checked,
 and a compile-time range analysis proves and eliminates the checks that are
-provably redundant**, so the language is memory-safe without paying for a
-check on every single access. Checks that survive to runtime report the
-exact NovaCraft source location on violation via a generated source map —
-not a bare WebAssembly trap.
+provably redundant**. Under the default policy (`--harden=proof`), and with
+`full` and `strict`, every out-of-bounds access that the tests and the
+evaluation exercise traps, *provided the caller passes an honest array
+length*: a check compares the index with the length argument, so a length
+larger than the real array is trusted (`docs/LIMITATIONS.md`). Other
+policies omit some unproven checks by design. Checks that survive to runtime
+report the exact NovaCraft source location on violation via a generated
+source map — not a bare WebAssembly trap.
 
 ## Quick start
 
@@ -154,7 +158,9 @@ of an unproven site is `R = wP*P + wC*C + wW*W`: P = 1 if the index depends
 on an entry-point parameter (`src/harden/taint.ts`), C = proof gap (0.5 if
 one bound is proven, 1 if neither), W = 1 for a store. Only the threshold,
 budget, chuang and none policies omit checks, and omitting is unsound by
-design. `strict` is tested to be observably identical to `full`.
+design (`strict` is the threshold policy with tau = 0 and never omits). `strict` is
+tested to be observably identical to `full` on fuzzed inputs with honest
+length arguments (`tests/strictEquiv.test.ts`, `docs/FORMAL.md`).
 
 Run it via `npx ts-node src/cli.ts <file> [options]`, or `npm run novac --
 <file> [options]`, or `node bin/novac.js <file> [options]` (the packaged
@@ -194,8 +200,9 @@ DEVLOG.md for the full rationale. `main` functions with no parameters (like
 
 ## Memory layout
 
-- Single linear memory, 1 initial page, grown automatically by the `wabt`/
-  WebAssembly runtime if a program needs more.
+- Single linear memory, 1 initial page. Generated code never grows it; a
+  host (the evaluation harness in `eval/`) grows it from JavaScript when it
+  places arrays above the first page.
 - Offset `0..4095`: reserved for a test harness (Jest tests or the CLI's
   `--run` driver) to write array test data. The CLI seeds its default test
   array starting at offset `0`.
@@ -206,7 +213,9 @@ DEVLOG.md for the full rationale. `main` functions with no parameters (like
   (`STACK_LIMIT`): a prologue that would move `$sp` below `8192` traps with
   check id `-1` in the side channel, reported as
   `Runtime error: stack overflow`, so the stack never reaches the side
-  channel or the harness array region.
+  channel or the harness array region. The evaluation (`eval/layout.ts`)
+  places its arrays from `65536` upward, above the stack, with 16-byte
+  sentinel gaps between them.
 - Three fixed offsets used as a trap side-channel (`src/stackFrame.ts`):
   `4096` (failing index), `4100` (failing length), `4104` (id of the
   `BoundsCheck` that fired, used to look up the source location in the
@@ -214,7 +223,8 @@ DEVLOG.md for the full rationale. `main` functions with no parameters (like
 
 ## Register allocation
 
-Linear scan (Poletto & Sarkar) over live ranges computed by flattening the
+Linear scan (Poletto & Sarkar [verify]; this citation predates the
+improvement milestones and is not in their related-work list) over live ranges computed by flattening the
 (structurally nested) IR into a linear sequence of program points, with a
 fixed physical-register budget (`r0..r{budget-1}`, default 4, overridable
 via `--reg-budget`). On overflow, the interval with the furthest next use is
@@ -224,6 +234,9 @@ the resulting table, e.g.:
 ```
 Register allocation for sumArray (budget=4):
   %t0 -> r2
+  %t1 -> spill[1]
+  %t2 -> spill[2]
+  %t3 -> spill[3]
   arr -> r0
   i -> r3
   len -> r1
@@ -232,12 +245,16 @@ Register allocation for sumArray (budget=4):
 
 ## Range analysis / bounds-check elimination
 
-See `src/optimize/rangeAnalysis.ts` and DEVLOG.md for the full algorithm.
-In short: a numeric interval analysis with fixed-point iteration + widening
-over `while` loops (proves e.g. `i >= 0`), combined with a symbolic
-"less-than fact" carried from a loop's own condition (proves `i < len` even
-though `len` has no useful numeric bound of its own). A `BoundsCheck` is
-eliminated only when both facts are established; otherwise it is kept.
+See `src/optimize/rangeAnalysis.ts` and `docs/FORMAL.md` for the full
+algorithm. In short: a numeric interval analysis over i32 (any arithmetic
+that could wrap gives the full range), iterated to a verified fixed point
+with widening over `while` loops (proves e.g. `i >= 0`); symbolic
+"less-than facts" from `while`/`if` conditions (prove `i < len` even though
+`len` has no useful numeric bound of its own); and exact linear definitions
+`d = b + c` (prove e.g. `arr[i + 1]` under `i < len - 1` when `len - 1`
+cannot wrap). A `BoundsCheck` is proven only when both its lower and its
+upper bound are; what happens to unproven checks depends on the
+`--harden` policy.
 Running with `--emit-ir` or `--stats` prints a summary, e.g.:
 
 ```
@@ -282,9 +299,9 @@ Speedup from elimination: 1.33x  (32.5% overhead removed)
 
 These figures vary by machine, Node/V8 version and run: the benchmark
 reports a mean of 20 calls with no variance, and the run before the fixes
-on the same machine gave 1.04x and 1.34x. Treat them as indicative only;
-on this machine removing the single read check in `sumArray` saves little,
-while removing the read + write checks in `scaleArray` saves more.
+on the same machine gave 1.04x and 1.34x. They are single runs. The evaluation later measured a median run-to-run
+difference of 38.7% (`results/RESULTS.md`), so these figures do not support
+a runtime claim; they are shown only as what the benchmark printed.
 
 Both variants of each scenario are verified to compute the identical,
 correct result before any timing number is trusted — the benchmark is not
@@ -363,6 +380,11 @@ doesn't change the result), `tests/compile.test.ts` (guarding the
 `--no-bounds-elim` path the benchmark relies on), plus `tests/e2e.test.ts`
 covering real WebAssembly execution (the happy-path sum, recursive
 Fibonacci, a runtime bounds-violation trap with the exact diagnostic
-message, the `for`/`else if` sugar, and a CLI smoke test). CI
+message, the `for`/`else if` sugar, and a CLI smoke test). The hardening
+milestones added soundness fixtures (`tests/soundness.test.ts`),
+differential fuzz tests (`differential`, `regBudget`, `strictEquiv`,
+`analysisSoundness`), policy and versioning tests (`harden`, `versioning`,
+`monotonicity` with fast-check), and tests for the evaluation and mutation
+tooling (`eval`, `mutation`, `docs`). CI
 (`.github/workflows/ci.yml`) runs the type checker, the full suite, and a
 production build on every push/PR against Node 18 and 20.

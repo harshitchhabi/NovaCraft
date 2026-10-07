@@ -14,7 +14,7 @@ Every configuration (main and tau sweep) produced the same return value and fina
 
 ## Static decisions
 
-Per benchmark under `strict` (proof elimination + loop versioning, nothing omitted). "versionable" counts unproven sites whose loop matches the versioning pattern.
+Per benchmark under `strict` (proof elimination + loop versioning, nothing omitted). Under `strict` every unproven site whose loop matches the versioning pattern is hoisted, so "hoisted" is also the number of versionable sites.
 
 | benchmark | sites | proven | hoisted | retained | ext. writes | code size full / strict (bytes) |
 |---|---|---|---|---|---|---|
@@ -110,7 +110,7 @@ There are 5 external-index write sites in total, in: smooth, smoothV, histogram,
 
 ## Security: bug corpus
 
-13 programs in `bench/bugs/`, one injected out-of-bounds bug each (ground truth in `bench/bugs/manifest.json`). Each array is surrounded by 16-byte sentinel gaps. Outcomes: **detected** (trap at the manifest's check), **silent_corruption** (no trap, a sentinel changed), **missed_benign** (no trap, sentinels intact: an out-of-bounds read, or a write that stayed inside the gap pattern), **other_trap**.
+13 programs in `bench/bugs/`, one injected out-of-bounds bug each (ground truth in `bench/bugs/manifest.json`). Each array is surrounded by 16-byte sentinel gaps. Outcomes: **detected** (trap at the manifest's check), **silent_corruption** (no trap, a sentinel changed), **missed_benign** (no trap, sentinels intact: an out-of-bounds read, or a write that did not change any sentinel word, e.g. one that skipped past a gap), **other_trap**.
 
 | bug | access | index | none | full | proof | strict | balanced | performance | budget:0.25 | budget:0.5 | chuang |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -236,7 +236,7 @@ Overhead relative to `none` (pass-1 medians), and whether each configuration dif
 | scatter | -0.4% | -12.3% | -13.1% | 2.3% | 13.5% | 20.2% | -18.6% | 5.1% |
 | reverse | 79.4% | 113.7% | 44.6% | 40.1% | 14.8% | 2.6% (faster than proof) | 16.2% | 34.8% |
 
-5 of 112 configuration-vs-proof runtime differences exceed the kernel's run-to-run noise: prefixSum/full slower than proof by 16.9% (noise 8.8%); prefixSum/balanced slower than proof by 18.1% (noise 8.8%); stencilV/balanced faster than proof by 37.5% (noise 34.4%); gather/full slower than proof by 54.3% (noise 42.0%); reverse/budget:0.25 faster than proof by 52.0% (noise 51.0%). All other runtime differences are within noise and are not claimed as results.
+5 of 112 configuration-vs-proof runtime differences exceed the kernel's run-to-run noise: prefixSum/full slower than proof by 16.9% (noise 8.8%); prefixSum/balanced slower than proof by 18.1% (noise 8.8%); stencilV/balanced faster than proof by 37.5% (noise 34.4%); gather/full slower than proof by 54.3% (noise 42.0%); reverse/budget:0.25 faster than proof by 52.0% (noise 51.0%). All other runtime differences are within noise. The noise estimate comes from only two passes and there are 112 comparisons, so a few exceedances are expected by chance, and they go in both directions; they are listed, not claimed as results.
 
 ## Weight ablation (sensitivity, not tuning)
 
@@ -265,5 +265,5 @@ Overhead relative to `none` (pass-1 medians), and whether each configuration dif
 - Kernels are NovaCraft ports written for this project, small and few; they are not PolyBench and results may not transfer.
 - Coverage metrics are static (sites), not weighted by execution frequency.
 - The bug corpus is hand-written, one bug per program, with one triggering input each.
-- `chuang` is an approximation of Chuang et al. 2007 (writes kept, reads dropped), not a reimplementation.
+- `chuang` is an approximation of Chuang et al. 2007 [verify] (writes kept, reads dropped), not a reimplementation.
 - Runtime is measured on V8 only, on one machine, in one process.

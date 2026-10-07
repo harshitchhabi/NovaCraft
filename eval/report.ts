@@ -160,7 +160,7 @@ export function generateReport(dir: string): string {
   // ---- static
   P('## Static decisions');
   P();
-  P('Per benchmark under `strict` (proof elimination + loop versioning, nothing omitted). "versionable" counts unproven sites whose loop matches the versioning pattern.');
+  P('Per benchmark under `strict` (proof elimination + loop versioning, nothing omitted). Under `strict` every unproven site whose loop matches the versioning pattern is hoisted, so "hoisted" is also the number of versionable sites.');
   P();
   P(table(
     ['benchmark', 'sites', 'proven', 'hoisted', 'retained', 'ext. writes', 'code size full / strict (bytes)'],
@@ -255,7 +255,7 @@ export function generateReport(dir: string): string {
   P('## Security: bug corpus');
   P();
   const bugs = [...new Set(sec.map((r) => r.bug))];
-  P(`${bugs.length} programs in \`bench/bugs/\`, one injected out-of-bounds bug each (ground truth in \`bench/bugs/manifest.json\`). Each array is surrounded by 16-byte sentinel gaps. Outcomes: **detected** (trap at the manifest's check), **silent_corruption** (no trap, a sentinel changed), **missed_benign** (no trap, sentinels intact: an out-of-bounds read, or a write that stayed inside the gap pattern), **other_trap**.`);
+  P(`${bugs.length} programs in \`bench/bugs/\`, one injected out-of-bounds bug each (ground truth in \`bench/bugs/manifest.json\`). Each array is surrounded by 16-byte sentinel gaps. Outcomes: **detected** (trap at the manifest's check), **silent_corruption** (no trap, a sentinel changed), **missed_benign** (no trap, sentinels intact: an out-of-bounds read, or a write that did not change any sentinel word, e.g. one that skipped past a gap), **other_trap**.`);
   P();
   const outcomeShort: Record<string, string> = { detected: 'D', silent_corruption: 'C', missed_benign: 'm', other_trap: 'T', other_trap_after_corruption: 'TC' };
   P(table(
@@ -420,7 +420,7 @@ export function generateReport(dir: string): string {
     }),
   ));
   P();
-  P(`${beyond} of ${comparisons} configuration-vs-proof runtime differences exceed the kernel's run-to-run noise${beyond ? ': ' + beyondList.join('; ') : ''}. All other runtime differences are within noise and are not claimed as results.`);
+  P(`${beyond} of ${comparisons} configuration-vs-proof runtime differences exceed the kernel's run-to-run noise${beyond ? ': ' + beyondList.join('; ') : ''}. All other runtime differences are within noise. The noise estimate comes from only two passes and there are ${comparisons} comparisons, so a few exceedances are expected by chance, and they go in both directions; they are listed, not claimed as results.`);
   P();
 
   // ---- ablation
@@ -453,7 +453,7 @@ export function generateReport(dir: string): string {
   P('- Kernels are NovaCraft ports written for this project, small and few; they are not PolyBench and results may not transfer.');
   P('- Coverage metrics are static (sites), not weighted by execution frequency.');
   P('- The bug corpus is hand-written, one bug per program, with one triggering input each.');
-  P('- `chuang` is an approximation of Chuang et al. 2007 (writes kept, reads dropped), not a reimplementation.');
+  P('- `chuang` is an approximation of Chuang et al. 2007 [verify] (writes kept, reads dropped), not a reimplementation.');
   P('- Runtime is measured on V8 only, on one machine, in one process.');
   P();
   return out.join('\n');

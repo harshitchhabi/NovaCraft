@@ -509,3 +509,13 @@ size per configuration. Only the report changed: the raw A3 CSVs and
 - Monotonicity is a fast-check property: 300 runs, seed 20261007, random
   program, weights in [0, 1] and tau pairs in [0, 1.2].
 - `fast-check` added as a dev dependency.
+
+## Milestone A5: honesty audit
+
+See docs/HONESTY_AUDIT.md for the headline-number table (each number with
+its source file) and every claim removed or softened. Docs only: the
+generated sentences of results/RESULTS.md were fixed in the prose strings
+of eval/report.ts and regenerated from the unchanged raw CSVs (a diff shows
+only wording changed). The final check is `npm ci && npm test && npm run
+eval` from a clean clone. Its eval output stays in that clone and is not
+committed, so the committed A3 numbers are not replaced by a rerun.
