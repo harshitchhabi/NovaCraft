@@ -431,3 +431,14 @@ left open, one line each:
   pass-to-pass difference is still 38.7% (max 56.1%), so almost all runtime
   comparisons are reported as within noise. Checks executed remains the
   cost metric the conclusions rest on.
+
+## A3b step 1: cost accounting counts loop-versioning guards
+
+The A3 report's cost metric counted bounds checks only, although the
+counter build already recorded guard evaluations (`guards_executed` in
+`results/raw/dynamic.csv` and `sweep.csv`). `eval/report.ts` now uses
+checks + guard evaluations as the cost metric everywhere (tables, Pareto
+plots, sweep), reports checks, guards and their total separately, keeps the
+A3 checks-only numbers in columns labelled "A3 accounting", and adds code
+size per configuration. Only the report changed: the raw A3 CSVs and
+`eval/run.ts` are untouched, and RESULTS.md was regenerated from them.

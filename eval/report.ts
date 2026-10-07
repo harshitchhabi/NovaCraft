@@ -56,7 +56,7 @@ function table(head: string[], rows: Array<Array<string | number>>): string {
 
 interface Point {
   label: string;
-  x: number; // checks executed / full
+  x: number; // (checks + guards executed) / full's checks
   y: number; // ext-write coverage, or detection rate
   kind: 'config' | 'sweep' | 'bench';
 }
@@ -91,7 +91,7 @@ function svgPlot(title: string, yLabel: string, points: Point[], sweep: Point[])
     parts.push(`<text x="${X(xv)}" y="${m.t + ph + 16}" text-anchor="middle">${(100 * xv).toFixed(0)}%</text>`);
   }
   parts.push(`<rect x="${m.l}" y="${m.t}" width="${pw}" height="${ph}" fill="none" stroke="#333"/>`);
-  parts.push(`<text x="${m.l + pw / 2}" y="${H - 14}" text-anchor="middle">checks executed (% of full)</text>`);
+  parts.push(`<text x="${m.l + pw / 2}" y="${H - 14}" text-anchor="middle">checks + guards executed (% of full's checks)</text>`);
   parts.push(`<text transform="translate(16 ${m.t + ph / 2}) rotate(-90)" text-anchor="middle">${yLabel}</text>`);
   for (const p of points.filter((q) => q.kind === 'bench')) {
     parts.push(`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="2.5" fill="#999" fill-opacity="0.45"><title>${p.label}</title></circle>`);
@@ -145,7 +145,7 @@ export function generateReport(dir: string): string {
   P();
   P('**What these benchmarks are.** The 16 kernels in `bench/` are small NovaCraft ports of PolyBench-style kernels written for this project, not PolyBench itself (NovaCraft cannot compile C). Arrays are flattened to 1D. All inputs are generated from fixed seeds, are identical across configurations, and keep every access in bounds. Timing is V8 only, on one machine.');
   P();
-  P('Configurations: ' + MAIN_CONFIGS.map((c) => `\`${c}\``).join(', ') + '. The main cost metric is **checks executed** (counter-instrumented build, deterministic). Runtime is reported separately with its measured noise.');
+  P('Configurations: ' + MAIN_CONFIGS.map((c) => `\`${c}\``).join(', ') + '. The main cost metric is **checks + guard evaluations executed** (counter-instrumented build, deterministic); the A3 checks-only accounting is kept in labelled columns. Runtime is reported separately with its measured noise.');
   P();
 
   // ---- correctness
@@ -194,27 +194,40 @@ export function generateReport(dir: string): string {
   P();
 
   // ---- dynamic
-  P('## Checks executed (main cost metric)');
+  // Cost accounting (A3b): a loop-versioning guard evaluation is counted as
+  // cost alongside bounds checks. The A3 report counted checks only; that
+  // number is kept in columns labelled "checks only (A3 accounting)".
+  P('## Cost: checks and guards executed (main cost metric)');
   P();
-  P('Dynamic bounds checks executed on the benchmark input, as a percentage of `full`. Loop-versioning guards are counted separately (one guard evaluation per entry into a versioned loop).');
+  P('Cost = dynamic bounds checks executed + loop-versioning guard evaluations (one per entry into a versioned loop), on the benchmark input, as a percentage of the checks `full` executes (`full` has no guards). Only configurations that hoist (strict, balanced, performance, budget:*) evaluate guards. The A3 version of this report counted checks only; that accounting is kept in the labelled columns.');
   P();
-  const dynCols = MAIN_CONFIGS.filter((c) => c !== 'none');
+  const dynCols = MAIN_CONFIGS.filter((c) => c !== 'none' && c !== 'full');
+  const cost = (b: string, c: string) => num(get(dyn, b, c).checks_executed) + num(get(dyn, b, c).guards_executed);
   P(table(
-    ['benchmark', 'full (count)', ...dynCols.filter((c) => c !== 'full'), 'strict guards'],
+    ['benchmark', 'full checks (count)', ...dynCols.map((c) => `${c} checks+guards`), 'strict guards (count)', 'strict checks only (A3 accounting)'],
     benches.map((b) => {
       const full = num(get(dyn, b, 'full').checks_executed);
       return [
         b,
         full,
-        ...dynCols.filter((c) => c !== 'full').map((c) => (full ? pct(num(get(dyn, b, c).checks_executed) / full) : '-')),
+        ...dynCols.map((c) => (full ? pct(cost(b, c) / full) : '-')),
         get(dyn, b, 'strict').guards_executed,
+        full ? pct(num(get(dyn, b, 'strict').checks_executed) / full) : '-',
       ];
     }),
   ));
   P();
   const totalChecks = (c: string) => sum(benches.map((b) => num(get(dyn, b, c).checks_executed)));
+  const totalGuards = (c: string) => sum(benches.map((b) => num(get(dyn, b, c).guards_executed)));
+  const totalCost = (c: string) => totalChecks(c) + totalGuards(c);
   const fullTotal = totalChecks('full');
-  P(`Summed over all kernels (${fullTotal} checks under full): ` + dynCols.filter((c) => c !== 'full').map((c) => `${c} ${pct(totalChecks(c) / fullTotal)}`).join(', ') + '.');
+  const codeSize = (c: string) => sum(benches.map((b) => num(get(st, b, c).code_size)));
+  P(`Summed over all kernels (${fullTotal} checks under full):`);
+  P();
+  P(table(
+    ['config', 'checks executed', 'guard evaluations', 'checks + guards', 'checks + guards (% of full)', 'checks only (% of full, A3 accounting)', 'code size (sum, bytes)'],
+    MAIN_CONFIGS.map((c) => [c, totalChecks(c), totalGuards(c), totalCost(c), pct(totalCost(c) / fullTotal), pct(totalChecks(c) / fullTotal), codeSize(c)]),
+  ));
   P();
 
   // ---- coverage
@@ -230,7 +243,10 @@ export function generateReport(dir: string): string {
       ewSites: sum(rows.map((r) => num(r.ext_write_sites))),
     };
   };
-  P(table(['config', 'coverage', 'coverage_ext_write', 'checks executed (% of full)'], MAIN_CONFIGS.map((c) => [c, fx(covOf(c).cov), fx(covOf(c).ew), pct(totalChecks(c) / fullTotal)])));
+  P(table(
+    ['config', 'coverage', 'coverage_ext_write', 'checks + guards (% of full)', 'checks only (% of full, A3 accounting)', 'code size (sum, bytes)'],
+    MAIN_CONFIGS.map((c) => [c, fx(covOf(c).cov), fx(covOf(c).ew), pct(totalCost(c) / fullTotal), pct(totalChecks(c) / fullTotal), codeSize(c)]),
+  ));
   P();
   P(`There are ${covOf('full').ewSites} external-index write sites in total, in: ${benches.filter((b) => num(get(st, b, 'full').ext_write_sites) > 0).join(', ')}.`);
   P();
@@ -271,12 +287,12 @@ export function generateReport(dir: string): string {
   // ---- pareto
   P('## Overhead vs. protection (Pareto)');
   P();
-  const configPts: Point[] = MAIN_CONFIGS.map((c) => ({ label: c, x: totalChecks(c) / fullTotal, y: covOf(c).ew, kind: 'config' }));
+  const configPts: Point[] = MAIN_CONFIGS.map((c) => ({ label: c, x: totalCost(c) / fullTotal, y: covOf(c).ew, kind: 'config' }));
   const sweepPts: Point[] = TAUS.map((t) => {
     const rows = sweep.filter((r) => num(r.tau) === t);
     return {
       label: `tau=${t}`,
-      x: sum(rows.map((r) => num(r.checks_executed))) / sum(rows.map((r) => num(r.checks_full))),
+      x: sum(rows.map((r) => num(r.checks_executed) + num(r.guards_executed))) / sum(rows.map((r) => num(r.checks_full))),
       y: sum(rows.map((r) => num(r.ext_write_protected))) / sum(rows.map((r) => num(r.ext_write_sites))),
       kind: 'sweep',
     };
@@ -287,20 +303,20 @@ export function generateReport(dir: string): string {
     for (const c of MAIN_CONFIGS) {
       const s = get(st, b, c);
       if (num(s.ext_write_sites) === 0 || full === 0) continue;
-      benchPts.push({ label: `${b} ${c}`, x: num(get(dyn, b, c).checks_executed) / full, y: num(s.coverage_ext_write), kind: 'bench' });
+      benchPts.push({ label: `${b} ${c}`, x: cost(b, c) / full, y: num(s.coverage_ext_write), kind: 'bench' });
     }
   }
-  fs.writeFileSync(path.join(dir, 'pareto.svg'), svgPlot('Checks executed vs. external-write coverage', 'coverage_ext_write', [...benchPts, ...configPts], sweepPts));
-  const secPts: Point[] = MAIN_CONFIGS.map((c) => ({ label: c, x: totalChecks(c) / fullTotal, y: secSummary(c).det / secSummary(c).total, kind: 'config' }));
+  fs.writeFileSync(path.join(dir, 'pareto.svg'), svgPlot('Checks + guards executed vs. external-write coverage', 'coverage_ext_write', [...benchPts, ...configPts], sweepPts));
+  const secPts: Point[] = MAIN_CONFIGS.map((c) => ({ label: c, x: totalCost(c) / fullTotal, y: secSummary(c).det / secSummary(c).total, kind: 'config' }));
   const secSweep: Point[] = TAUS.map((t, k) => {
     const rows = sec.filter((r) => r.config === `threshold:${t}`);
     return { label: `tau=${t}`, x: sweepPts[k].x, y: rows.filter((r) => r.outcome === 'detected').length / rows.length, kind: 'sweep' };
   });
-  fs.writeFileSync(path.join(dir, 'pareto_security.svg'), svgPlot('Checks executed vs. bugs detected', 'bug programs detected (fraction)', secPts, secSweep));
+  fs.writeFileSync(path.join(dir, 'pareto_security.svg'), svgPlot('Checks + guards executed vs. bugs detected', 'bug programs detected (fraction)', secPts, secSweep));
 
-  P('![Pareto: checks executed vs. coverage_ext_write](pareto.svg)');
+  P('![Pareto: checks + guards executed vs. coverage_ext_write](pareto.svg)');
   P();
-  P('x: checks executed summed over all kernels, as a fraction of `full`; y: coverage_ext_write. Squares: the main configurations (red = not dominated by another configuration); blue line: `threshold:tau` for tau = 0, 0.05, ..., 1; grey dots: individual kernels with at least one external-index write.');
+  P('x: checks + guard evaluations summed over all kernels, as a fraction of the checks `full` executes; y: coverage_ext_write. Squares: the main configurations (red = not dominated by another configuration); blue line: `threshold:tau` for tau = 0, 0.05, ..., 1; grey dots: individual kernels with at least one external-index write.');
   P();
   const describeFront = (pts: Point[], what: string) => {
     const front = paretoFront(pts);
@@ -312,30 +328,31 @@ export function generateReport(dir: string): string {
       const dominators = pts.filter((q) => q !== pa && q.x <= pa.x && q.y >= pa.y && (q.x < pa.x || q.y > pa.y)).map((q) => `\`${q.label}\``);
       const vs = ['proof', 'chuang'].map((base) => {
         const pb = pts.find((p) => p.label === base)!;
-        return `vs \`${base}\`: ${pct(pa.x, 1)} vs ${pct(pb.x, 1)} checks, ${fx(pa.y)} vs ${fx(pb.y)}`;
+        return `vs \`${base}\`: ${pct(pa.x, 1)} vs ${pct(pb.x, 1)} checks+guards, ${fx(pa.y)} vs ${fx(pb.y)}`;
       });
       lines.push(`- \`${a}\`: ${dominators.length ? `dominated by ${dominators.join(', ')}` : 'not dominated'}; ${vs.join('; ')}.`);
     }
     return lines.join('\n');
   };
-  P(describeFront(configPts, 'checks executed vs. coverage_ext_write'));
+  P(describeFront(configPts, 'checks + guards vs. coverage_ext_write'));
   P();
-  P('![Pareto: checks executed vs. bugs detected](pareto_security.svg)');
+  P('![Pareto: checks + guards executed vs. bugs detected](pareto_security.svg)');
   P();
-  P(describeFront(secPts, 'checks executed vs. fraction of bug programs detected'));
+  P(describeFront(secPts, 'checks + guards vs. fraction of bug programs detected'));
   P();
 
   // ---- tau sweep
   P('## Threshold sweep');
   P();
   P(table(
-    ['tau', 'checks executed (% of full)', 'sites omitted', 'coverage', 'coverage_ext_write', 'bugs detected', 'bugs with silent corruption'],
+    ['tau', 'checks + guards (% of full)', 'checks only (A3 accounting)', 'sites omitted', 'coverage', 'coverage_ext_write', 'bugs detected', 'bugs with silent corruption'],
     TAUS.map((t, k) => {
       const rows = sweep.filter((r) => num(r.tau) === t);
       const srows = sec.filter((r) => r.config === `threshold:${t}`);
       return [
         t.toFixed(2),
         pct(sweepPts[k].x),
+        pct(sum(rows.map((r) => num(r.checks_executed))) / sum(rows.map((r) => num(r.checks_full)))),
         sum(rows.map((r) => num(r.omitted))),
         fx(sum(rows.map((r) => num(r.protected))) / sum(rows.map((r) => num(r.sites)))),
         fx(sweepPts[k].y),

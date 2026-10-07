@@ -6,7 +6,7 @@ Environment: Node v22.22.0 (V8 12.4.254.21-node.33), linux 6.18.44-fc-v77 x64, I
 
 **What these benchmarks are.** The 16 kernels in `bench/` are small NovaCraft ports of PolyBench-style kernels written for this project, not PolyBench itself (NovaCraft cannot compile C). Arrays are flattened to 1D. All inputs are generated from fixed seeds, are identical across configurations, and keep every access in bounds. Timing is V8 only, on one machine.
 
-Configurations: `none`, `full`, `proof`, `strict`, `balanced`, `performance`, `budget:0.25`, `budget:0.5`, `chuang`. The main cost metric is **checks executed** (counter-instrumented build, deterministic). Runtime is reported separately with its measured noise.
+Configurations: `none`, `full`, `proof`, `strict`, `balanced`, `performance`, `budget:0.25`, `budget:0.5`, `chuang`. The main cost metric is **checks + guard evaluations executed** (counter-instrumented build, deterministic); the A3 checks-only accounting is kept in labelled columns. Runtime is reported separately with its measured noise.
 
 ## Correctness on benign inputs
 
@@ -53,46 +53,58 @@ Decision counts summed over all kernels, per configuration:
 | budget:0.5 | 10 | 5 | 20 | 24 | 12283 |
 | chuang | 10 | 0 | 15 | 34 | 9925 |
 
-## Checks executed (main cost metric)
+## Cost: checks and guards executed (main cost metric)
 
-Dynamic bounds checks executed on the benchmark input, as a percentage of `full`. Loop-versioning guards are counted separately (one guard evaluation per entry into a versioned loop).
+Cost = dynamic bounds checks executed + loop-versioning guard evaluations (one per entry into a versioned loop), on the benchmark input, as a percentage of the checks `full` executes (`full` has no guards). Only configurations that hoist (strict, balanced, performance, budget:*) evaluate guards. The A3 version of this report counted checks only; that accounting is kept in the labelled columns.
 
-| benchmark | full (count) | proof | strict | balanced | performance | budget:0.25 | budget:0.5 | chuang | strict guards |
-|---|---|---|---|---|---|---|---|---|---|
-| sumArray | 2000000 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0 |
-| prefixSum | 5999997 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0 |
-| dot | 4000000 | 50.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 1 |
-| axpy | 6000001 | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 33.3% | 1 |
-| matvec | 3201716 | 100.0% | 50.0% | 50.0% | 0.0% | 0.0% | 0.0% | 0.0% | 1266 |
-| stencil | 7999993 | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 25.0% | 25.0% | 0 |
-| stencilV | 7999993 | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 25.0% | 1 |
-| smooth | 4999921 | 100.0% | 100.0% | 100.0% | 10.0% | 10.0% | 10.0% | 10.0% | 0 |
-| smoothV | 4999921 | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 10.0% | 499993 |
-| histogram | 6000001 | 66.7% | 66.7% | 66.7% | 33.3% | 0.0% | 33.3% | 33.3% | 0 |
-| bubbleSort | 5382059 | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 16.6% | 33.2% | 0 |
-| insertionSort | 3204988 | 99.9% | 99.9% | 0.0% | 0.0% | 0.1% | 0.1% | 50.0% | 0 |
-| binarySearch | 2500300 | 92.0% | 92.0% | 92.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0 |
-| gather | 6000001 | 66.7% | 33.3% | 33.3% | 0.0% | 0.0% | 33.3% | 33.3% | 1 |
-| scatter | 6000001 | 66.7% | 33.3% | 33.3% | 33.3% | 0.0% | 33.3% | 33.3% | 1 |
-| reverse | 4000001 | 100.0% | 50.0% | 50.0% | 25.0% | 0.0% | 25.0% | 50.0% | 1 |
+| benchmark | full checks (count) | proof checks+guards | strict checks+guards | balanced checks+guards | performance checks+guards | budget:0.25 checks+guards | budget:0.5 checks+guards | chuang checks+guards | strict guards (count) | strict checks only (A3 accounting) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| sumArray | 2000000 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0 | 0.0% |
+| prefixSum | 5999997 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0 | 0.0% |
+| dot | 4000000 | 50.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 1 | 0.0% |
+| axpy | 6000001 | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 33.3% | 1 | 0.0% |
+| matvec | 3201716 | 100.0% | 50.0% | 50.0% | 0.0% | 0.0% | 0.0% | 0.0% | 1266 | 50.0% |
+| stencil | 7999993 | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 25.0% | 25.0% | 0 | 100.0% |
+| stencilV | 7999993 | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 25.0% | 1 | 0.0% |
+| smooth | 4999921 | 100.0% | 100.0% | 100.0% | 10.0% | 10.0% | 10.0% | 10.0% | 0 | 100.0% |
+| smoothV | 4999921 | 100.0% | 10.0% | 10.0% | 0.0% | 0.0% | 0.0% | 10.0% | 499993 | 0.0% |
+| histogram | 6000001 | 66.7% | 66.7% | 66.7% | 33.3% | 0.0% | 33.3% | 33.3% | 0 | 66.7% |
+| bubbleSort | 5382059 | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 16.6% | 33.2% | 0 | 100.0% |
+| insertionSort | 3204988 | 99.9% | 99.9% | 0.0% | 0.0% | 0.1% | 0.1% | 50.0% | 0 | 99.9% |
+| binarySearch | 2500300 | 92.0% | 92.0% | 92.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0 | 92.0% |
+| gather | 6000001 | 66.7% | 33.3% | 33.3% | 0.0% | 0.0% | 33.3% | 33.3% | 1 | 33.3% |
+| scatter | 6000001 | 66.7% | 33.3% | 33.3% | 33.3% | 0.0% | 33.3% | 33.3% | 1 | 33.3% |
+| reverse | 4000001 | 100.0% | 50.0% | 50.0% | 25.0% | 0.0% | 25.0% | 50.0% | 1 | 50.0% |
 
-Summed over all kernels (80288893 checks under full): proof 79.8%, strict 44.2%, balanced 23.5%, performance 6.9%, budget:0.25 0.6%, budget:0.5 12.9%, chuang 22.9%.
+Summed over all kernels (80288893 checks under full):
+
+| config | checks executed | guard evaluations | checks + guards | checks + guards (% of full) | checks only (% of full, A3 accounting) | code size (sum, bytes) |
+|---|---|---|---|---|---|---|
+| none | 0 | 0 | 0 | 0.0% | 0.0% | 9010 |
+| full | 80288893 | 0 | 80288893 | 100.0% | 100.0% | 12313 |
+| proof | 64086367 | 0 | 64086367 | 79.8% | 79.8% | 11821 |
+| strict | 35484965 | 501265 | 35986230 | 44.8% | 44.2% | 16248 |
+| balanced | 18900447 | 499993 | 19400440 | 24.2% | 23.5% | 10923 |
+| performance | 5499992 | 1 | 5499993 | 6.9% | 6.9% | 9829 |
+| budget:0.25 | 502533 | 2 | 502535 | 0.6% | 0.6% | 10856 |
+| budget:0.5 | 10395204 | 5 | 10395209 | 12.9% | 12.9% | 12283 |
+| chuang | 18387823 | 0 | 18387823 | 22.9% | 22.9% | 9925 |
 
 ## Coverage
 
 protected(site) = proven, hoisted or retained. coverage = protected / all sites; coverage_ext_write = protected external-index writes / all external-index writes (static, summed over kernels).
 
-| config | coverage | coverage_ext_write | checks executed (% of full) |
-|---|---|---|---|
-| none | 0.17 | 0.00 | 0.0% |
-| full | 1.00 | 1.00 | 100.0% |
-| proof | 1.00 | 1.00 | 79.8% |
-| strict | 1.00 | 1.00 | 44.2% |
-| balanced | 0.41 | 1.00 | 23.5% |
-| performance | 0.25 | 1.00 | 6.9% |
-| budget:0.25 | 0.44 | 0.40 | 0.6% |
-| budget:0.5 | 0.59 | 1.00 | 12.9% |
-| chuang | 0.42 | 1.00 | 22.9% |
+| config | coverage | coverage_ext_write | checks + guards (% of full) | checks only (% of full, A3 accounting) | code size (sum, bytes) |
+|---|---|---|---|---|---|
+| none | 0.17 | 0.00 | 0.0% | 0.0% | 9010 |
+| full | 1.00 | 1.00 | 100.0% | 100.0% | 12313 |
+| proof | 1.00 | 1.00 | 79.8% | 79.8% | 11821 |
+| strict | 1.00 | 1.00 | 44.8% | 44.2% | 16248 |
+| balanced | 0.41 | 1.00 | 24.2% | 23.5% | 10923 |
+| performance | 0.25 | 1.00 | 6.9% | 6.9% | 9829 |
+| budget:0.25 | 0.44 | 0.40 | 0.6% | 0.6% | 10856 |
+| budget:0.5 | 0.59 | 1.00 | 12.9% | 12.9% | 12283 |
+| chuang | 0.42 | 1.00 | 22.9% | 22.9% | 9925 |
 
 There are 5 external-index write sites in total, in: smooth, smoothV, histogram, scatter, reverse.
 
@@ -134,49 +146,49 @@ Under `full` every bug program is detected at its manifest check (13/13), confir
 
 ## Overhead vs. protection (Pareto)
 
-![Pareto: checks executed vs. coverage_ext_write](pareto.svg)
+![Pareto: checks + guards executed vs. coverage_ext_write](pareto.svg)
 
-x: checks executed summed over all kernels, as a fraction of `full`; y: coverage_ext_write. Squares: the main configurations (red = not dominated by another configuration); blue line: `threshold:tau` for tau = 0, 0.05, ..., 1; grey dots: individual kernels with at least one external-index write.
+x: checks + guard evaluations summed over all kernels, as a fraction of the checks `full` executes; y: coverage_ext_write. Squares: the main configurations (red = not dominated by another configuration); blue line: `threshold:tau` for tau = 0, 0.05, ..., 1; grey dots: individual kernels with at least one external-index write.
 
-Non-dominated configurations (checks executed vs. coverage_ext_write): `none`, `performance`, `budget:0.25`.
-- `balanced`: dominated by `performance`, `budget:0.5`, `chuang`; vs `proof`: 23.5% vs 79.8% checks, 1.00 vs 1.00; vs `chuang`: 23.5% vs 22.9% checks, 1.00 vs 1.00.
-- `performance`: not dominated; vs `proof`: 6.9% vs 79.8% checks, 1.00 vs 1.00; vs `chuang`: 6.9% vs 22.9% checks, 1.00 vs 1.00.
-- `budget:0.25`: not dominated; vs `proof`: 0.6% vs 79.8% checks, 0.40 vs 1.00; vs `chuang`: 0.6% vs 22.9% checks, 0.40 vs 1.00.
-- `budget:0.5`: dominated by `performance`; vs `proof`: 12.9% vs 79.8% checks, 1.00 vs 1.00; vs `chuang`: 12.9% vs 22.9% checks, 1.00 vs 1.00.
+Non-dominated configurations (checks + guards vs. coverage_ext_write): `none`, `performance`, `budget:0.25`.
+- `balanced`: dominated by `performance`, `budget:0.5`, `chuang`; vs `proof`: 24.2% vs 79.8% checks+guards, 1.00 vs 1.00; vs `chuang`: 24.2% vs 22.9% checks+guards, 1.00 vs 1.00.
+- `performance`: not dominated; vs `proof`: 6.9% vs 79.8% checks+guards, 1.00 vs 1.00; vs `chuang`: 6.9% vs 22.9% checks+guards, 1.00 vs 1.00.
+- `budget:0.25`: not dominated; vs `proof`: 0.6% vs 79.8% checks+guards, 0.40 vs 1.00; vs `chuang`: 0.6% vs 22.9% checks+guards, 0.40 vs 1.00.
+- `budget:0.5`: dominated by `performance`; vs `proof`: 12.9% vs 79.8% checks+guards, 1.00 vs 1.00; vs `chuang`: 12.9% vs 22.9% checks+guards, 1.00 vs 1.00.
 
-![Pareto: checks executed vs. bugs detected](pareto_security.svg)
+![Pareto: checks + guards executed vs. bugs detected](pareto_security.svg)
 
-Non-dominated configurations (checks executed vs. fraction of bug programs detected): `none`, `strict`, `balanced`, `performance`, `budget:0.5`.
-- `balanced`: not dominated; vs `proof`: 23.5% vs 79.8% checks, 0.69 vs 1.00; vs `chuang`: 23.5% vs 22.9% checks, 0.69 vs 0.62.
-- `performance`: not dominated; vs `proof`: 6.9% vs 79.8% checks, 0.38 vs 1.00; vs `chuang`: 6.9% vs 22.9% checks, 0.38 vs 0.62.
-- `budget:0.25`: dominated by `none`; vs `proof`: 0.6% vs 79.8% checks, 0.00 vs 1.00; vs `chuang`: 0.6% vs 22.9% checks, 0.00 vs 0.62.
-- `budget:0.5`: not dominated; vs `proof`: 12.9% vs 79.8% checks, 0.62 vs 1.00; vs `chuang`: 12.9% vs 22.9% checks, 0.62 vs 0.62.
+Non-dominated configurations (checks + guards vs. fraction of bug programs detected): `none`, `strict`, `balanced`, `performance`, `budget:0.5`.
+- `balanced`: not dominated; vs `proof`: 24.2% vs 79.8% checks+guards, 0.69 vs 1.00; vs `chuang`: 24.2% vs 22.9% checks+guards, 0.69 vs 0.62.
+- `performance`: not dominated; vs `proof`: 6.9% vs 79.8% checks+guards, 0.38 vs 1.00; vs `chuang`: 6.9% vs 22.9% checks+guards, 0.38 vs 0.62.
+- `budget:0.25`: dominated by `none`; vs `proof`: 0.6% vs 79.8% checks+guards, 0.00 vs 1.00; vs `chuang`: 0.6% vs 22.9% checks+guards, 0.00 vs 0.62.
+- `budget:0.5`: not dominated; vs `proof`: 12.9% vs 79.8% checks+guards, 0.62 vs 1.00; vs `chuang`: 12.9% vs 22.9% checks+guards, 0.62 vs 0.62.
 
 ## Threshold sweep
 
-| tau | checks executed (% of full) | sites omitted | coverage | coverage_ext_write | bugs detected | bugs with silent corruption |
-|---|---|---|---|---|---|---|
-| 0.00 | 44.2% | 0 | 1.00 | 1.00 | 13/13 | 0 |
-| 0.05 | 44.2% | 0 | 1.00 | 1.00 | 13/13 | 0 |
-| 0.10 | 44.2% | 0 | 1.00 | 1.00 | 13/13 | 0 |
-| 0.15 | 44.2% | 0 | 1.00 | 1.00 | 13/13 | 0 |
-| 0.20 | 30.2% | 25 | 0.58 | 1.00 | 12/13 | 0 |
-| 0.25 | 30.2% | 25 | 0.58 | 1.00 | 12/13 | 0 |
-| 0.30 | 30.2% | 25 | 0.58 | 1.00 | 12/13 | 0 |
-| 0.35 | 30.2% | 25 | 0.58 | 1.00 | 12/13 | 0 |
-| 0.40 | 30.2% | 25 | 0.58 | 1.00 | 10/13 | 0 |
-| 0.45 | 23.5% | 35 | 0.41 | 1.00 | 9/13 | 1 |
-| 0.50 | 23.5% | 35 | 0.41 | 1.00 | 9/13 | 1 |
-| 0.55 | 23.5% | 35 | 0.41 | 1.00 | 9/13 | 1 |
-| 0.60 | 23.5% | 35 | 0.41 | 1.00 | 9/13 | 1 |
-| 0.65 | 23.5% | 35 | 0.41 | 1.00 | 7/13 | 3 |
-| 0.70 | 23.5% | 35 | 0.41 | 1.00 | 7/13 | 3 |
-| 0.75 | 23.5% | 35 | 0.41 | 1.00 | 7/13 | 3 |
-| 0.80 | 6.9% | 44 | 0.25 | 1.00 | 5/13 | 3 |
-| 0.85 | 6.9% | 44 | 0.25 | 1.00 | 5/13 | 3 |
-| 0.90 | 6.9% | 44 | 0.25 | 1.00 | 5/13 | 3 |
-| 0.95 | 6.9% | 44 | 0.25 | 1.00 | 5/13 | 3 |
-| 1.00 | 6.9% | 44 | 0.25 | 1.00 | 5/13 | 3 |
+| tau | checks + guards (% of full) | checks only (A3 accounting) | sites omitted | coverage | coverage_ext_write | bugs detected | bugs with silent corruption |
+|---|---|---|---|---|---|---|---|
+| 0.00 | 44.8% | 44.2% | 0 | 1.00 | 1.00 | 13/13 | 0 |
+| 0.05 | 44.8% | 44.2% | 0 | 1.00 | 1.00 | 13/13 | 0 |
+| 0.10 | 44.8% | 44.2% | 0 | 1.00 | 1.00 | 13/13 | 0 |
+| 0.15 | 44.8% | 44.2% | 0 | 1.00 | 1.00 | 13/13 | 0 |
+| 0.20 | 30.9% | 30.2% | 25 | 0.58 | 1.00 | 12/13 | 0 |
+| 0.25 | 30.9% | 30.2% | 25 | 0.58 | 1.00 | 12/13 | 0 |
+| 0.30 | 30.9% | 30.2% | 25 | 0.58 | 1.00 | 12/13 | 0 |
+| 0.35 | 30.9% | 30.2% | 25 | 0.58 | 1.00 | 12/13 | 0 |
+| 0.40 | 30.9% | 30.2% | 25 | 0.58 | 1.00 | 10/13 | 0 |
+| 0.45 | 24.2% | 23.5% | 35 | 0.41 | 1.00 | 9/13 | 1 |
+| 0.50 | 24.2% | 23.5% | 35 | 0.41 | 1.00 | 9/13 | 1 |
+| 0.55 | 24.2% | 23.5% | 35 | 0.41 | 1.00 | 9/13 | 1 |
+| 0.60 | 24.2% | 23.5% | 35 | 0.41 | 1.00 | 9/13 | 1 |
+| 0.65 | 24.2% | 23.5% | 35 | 0.41 | 1.00 | 7/13 | 3 |
+| 0.70 | 24.2% | 23.5% | 35 | 0.41 | 1.00 | 7/13 | 3 |
+| 0.75 | 24.2% | 23.5% | 35 | 0.41 | 1.00 | 7/13 | 3 |
+| 0.80 | 6.9% | 6.9% | 44 | 0.25 | 1.00 | 5/13 | 3 |
+| 0.85 | 6.9% | 6.9% | 44 | 0.25 | 1.00 | 5/13 | 3 |
+| 0.90 | 6.9% | 6.9% | 44 | 0.25 | 1.00 | 5/13 | 3 |
+| 0.95 | 6.9% | 6.9% | 44 | 0.25 | 1.00 | 5/13 | 3 |
+| 1.00 | 6.9% | 6.9% | 44 | 0.25 | 1.00 | 5/13 | 3 |
 
 ## Runtime
 

@@ -116,7 +116,7 @@ describe('eval pipeline', () => {
     expect(new Set(timing.map((r) => r.pass))).toEqual(new Set(['1', '2']));
     expect(fs.readdirSync(path.join(dir, 'hardening')).length).toBe(BENCHMARKS.length);
     const md = generateReport(dir);
-    expect(md).toContain('## Checks executed');
+    expect(md).toContain('## Cost: checks and guards executed');
     expect(md).toContain('## Security: bug corpus');
     expect(md).not.toMatch(/NaN|undefined/);
     expect(fs.readFileSync(path.join(dir, 'pareto.svg'), 'utf-8')).toMatch(/^<svg/);
