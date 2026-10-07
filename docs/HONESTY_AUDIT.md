@@ -117,3 +117,19 @@ in the README results table and H1/H2 paragraphs; the R value table and the
 "at most 12 discrete values" statement; the decision rules (src/harden);
 the guard conditions (src/harden/version.ts); the 16/59 hoisted and 10/59
 proven counts; the bug-corpus outcomes; all LIMITATIONS numbers.
+
+## Clean-checkout check
+
+Fresh clone of `harden/risk-adaptive` at a259dfe, then `npm ci && npm test
+&& npm run eval`:
+
+- `npm ci` succeeded, and `npm test` passed 22 suites with 276 tests.
+- `npm run eval` completed in about 6.3 minutes.
+- The deterministic raw files (`static.csv`, `dynamic.csv`, `sweep.csv`,
+  `security.csv`, `ablation.csv`, `sites.csv`) are byte-identical to the
+  committed ones.
+- Timing differs, as expected: that run's median run-to-run noise was
+  22.3% (max 63.7%), against 38.7% (max 56.1%) in the committed run. This
+  confirms that runtime numbers on this machine do not support claims. The
+  clean-checkout outputs were not committed; the committed results are
+  unchanged.
