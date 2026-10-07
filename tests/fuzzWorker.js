@@ -5,9 +5,12 @@ const { parentPort } = require('worker_threads');
 
 const modules = new Map();
 
-function hashBytes(bytes) {
+// FNV-1a over linear memory, skipping [skipFrom, skipTo) (the spill stack).
+function hashBytes(bytes, skipFrom, skipTo) {
   let h = 0x811c9dc5;
   for (let i = 0; i < bytes.length; i++) {
+    if (i === skipFrom) i = skipTo;
+    if (i >= bytes.length) break;
     h ^= bytes[i];
     h = Math.imul(h, 0x01000193);
   }
@@ -41,6 +44,6 @@ parentPort.on('message', (m) => {
     }
   }
   o.printed = printed;
-  o.memoryHash = hashBytes(new Uint8Array(memory.buffer));
+  o.memoryHash = hashBytes(new Uint8Array(memory.buffer), m.stackRegion[0], m.stackRegion[1]);
   parentPort.postMessage({ id: m.id, outcome: o });
 });

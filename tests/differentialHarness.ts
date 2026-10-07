@@ -12,7 +12,14 @@ import wabtInit from 'wabt';
 import { compileProgram, CompileResult } from '../src/compile';
 import { IRFunction } from '../src/ir';
 import { Worker } from 'worker_threads';
-import { TRAP_INDEX_OFFSET, TRAP_LENGTH_OFFSET, TRAP_CHECK_ID_OFFSET } from '../src/stackFrame';
+import {
+  TRAP_INDEX_OFFSET,
+  TRAP_LENGTH_OFFSET,
+  TRAP_CHECK_ID_OFFSET,
+  STACK_LIMIT,
+  STACK_OVERFLOW_CHECK_ID,
+  SP_INITIAL,
+} from '../src/stackFrame';
 
 export const INT_MAX = 2147483647;
 export const INT_MIN = -2147483648;
@@ -127,6 +134,7 @@ class Runner {
         arrayBase: ARRAY_BASE,
         arrayStride: ARRAY_STRIDE,
         trapOffsets: { index: TRAP_INDEX_OFFSET, length: TRAP_LENGTH_OFFSET, checkId: TRAP_CHECK_ID_OFFSET },
+        stackRegion: [STACK_LIMIT, SP_INITIAL],
       });
     });
   }
@@ -143,7 +151,9 @@ const ELEMS = [0, 1, -1, 2, 3, 5, 8, 100, -100, INT_MAX, INT_MIN];
 // Builds one fuzzed argument vector for `fn`. Array parameters get a real
 // array of random length; their adjacent length parameter is chosen to be
 // sometimes the true length and sometimes shorter, longer, or extreme.
-export function fuzzArgs(fn: IRFunction, r: () => number): { args: number[]; arrays: number[][] } {
+// With `inBounds`, a length argument never exceeds the real array length, so
+// every access that passes its check stays inside the array.
+export function fuzzArgs(fn: IRFunction, r: () => number, inBounds = false): { args: number[]; arrays: number[][] } {
   const arrays: number[][] = [];
   const arrayIndex = new Map<string, number>();
   for (const p of fn.params) {
@@ -165,6 +175,7 @@ export function fuzzArgs(fn: IRFunction, r: () => number): { args: number[]; arr
     if (p.type === 'bool') return r() < 0.5 ? 0 : 1;
     const actual = lengthOf.get(p.name);
     if (actual !== undefined) {
+      if (inBounds) return pick(r, [actual, actual, actual, Math.max(0, actual - 1), 0, -1, INT_MIN]);
       return pick(r, [actual, actual, actual, actual - 1, actual + 1, 0, 1, -1, 2 * actual + 3, INT_MAX, INT_MIN]);
     }
     return r() < 0.6 ? pick(r, SCALARS) : Math.floor(r() * 41) - 10;
@@ -189,51 +200,90 @@ export interface DiffOptions {
   compileProof?: (source: string) => CompileResult;
   seed?: number;
   timeoutMs?: number;
+  // Only generate length arguments <= the real array length (see fuzzArgs).
+  inBoundsLengths?: boolean;
 }
 
-export async function differential(file: string, opts: DiffOptions): Promise<DiffReport> {
+export interface Build {
+  name: string;
+  compile: (source: string) => CompileResult;
+}
+
+export interface BuildMismatch {
+  fn: string;
+  args: number[];
+  arrays: number[][];
+  build: string;
+  reference: Outcome;
+  other: Outcome;
+}
+
+export interface CompareReport {
+  program: string;
+  cases: number;
+  timeouts: number;
+  mismatches: BuildMismatch[];
+  compileError?: string;
+}
+
+// Running out of stack is a resource limit, not program semantics: where it
+// happens depends on frame sizes (and so on the register budget), so a
+// stack-limit trap or a host stack overflow compares equal to any other.
+function normalize(o: Outcome): Outcome {
+  const exhausted =
+    (o.kind === 'trap' && o.trap === 'unreachable' && o.checkId === STACK_OVERFLOW_CHECK_ID) ||
+    (o.kind === 'host-error' && o.trap === 'RangeError');
+  return exhausted ? { kind: 'host-error', trap: 'stack-exhausted', printed: [], memoryHash: '' } : o;
+}
+
+// Runs every exported function of every build on the same fuzzed inputs and
+// compares each build's outcome with the first (reference) build's. Memory
+// is compared outside the spill stack region (which legitimately differs
+// with register allocation).
+export async function compareBuilds(file: string, builds: Build[], opts: DiffOptions): Promise<CompareReport> {
   const source = fs.readFileSync(file, 'utf-8');
   const program = path.basename(file);
   const timeoutMs = opts.timeoutMs ?? 400;
-  let fullC, proofC;
+  let compiled: CompileResult[];
   try {
-    fullC = compileProgram(source, { skipRangeAnalysis: true });
-    proofC = opts.compileProof ? opts.compileProof(source) : compileProgram(source, {});
+    compiled = builds.map((b) => b.compile(source));
   } catch (e) {
     return { program, cases: 0, timeouts: 0, mismatches: [], compileError: String(e) };
   }
   const runner = new Runner();
   try {
     try {
-      runner.load('full', await toBinary(fullC.codegen.wat));
-      runner.load('proof', await toBinary(proofC.codegen.wat));
+      for (let k = 0; k < builds.length; k++) runner.load(builds[k].name, await toBinary(compiled[k].codegen.wat));
     } catch (e) {
       return { program, cases: 0, timeouts: 0, mismatches: [], compileError: `wasm assembly failed: ${String(e)}` };
     }
 
     const r = rng(opts.seed ?? 1);
-    const mismatches: CaseResult[] = [];
+    const mismatches: BuildMismatch[] = [];
     let cases = 0;
     let timeouts = 0;
-    for (const fn of fullC.finalIR.functions) {
+    for (const fn of compiled[0].finalIR.functions) {
       const n = fn.params.length === 0 ? 1 : opts.casesPerFn;
       for (let c = 0; c < n; c++) {
-        const { args, arrays } = fuzzArgs(fn, r);
+        const { args, arrays } = fuzzArgs(fn, r, opts.inBoundsLengths);
         const t0 = Date.now();
-        const full = await runner.run('full', fn.name, args, arrays, timeoutMs);
-        if (full === 'timeout') {
+        const refRun = await runner.run(builds[0].name, fn.name, args, arrays, timeoutMs);
+        if (refRun === 'timeout') {
           timeouts++;
           continue;
         }
-        // The proof build must finish too; give it ample slack over the
-        // full build's time so a slow machine does not produce a mismatch.
-        const proofBudget = Math.max(timeoutMs, 10 * (Date.now() - t0) + 200);
-        const proofRun = await runner.run('proof', fn.name, args, arrays, proofBudget);
-        const proof: Outcome =
-          proofRun === 'timeout' ? { kind: 'host-error', trap: 'timeout', printed: [], memoryHash: '' } : proofRun;
+        const reference = normalize(refRun);
+        // Other builds must finish too; give them ample slack over the
+        // reference's time so a slow machine does not produce a mismatch.
+        const budget = Math.max(timeoutMs, 10 * (Date.now() - t0) + 200);
         cases++;
-        if (JSON.stringify(full) !== JSON.stringify(proof)) {
-          mismatches.push({ fn: fn.name, args, arrays, full, proof });
+        for (const b of builds.slice(1)) {
+          const run = await runner.run(b.name, fn.name, args, arrays, budget);
+          const other: Outcome =
+            run === 'timeout' ? { kind: 'host-error', trap: 'timeout', printed: [], memoryHash: '' } : normalize(run);
+          if (JSON.stringify(reference) !== JSON.stringify(other)) {
+            mismatches.push({ fn: fn.name, args, arrays, build: b.name, reference, other });
+          }
         }
       }
     }
@@ -241,6 +291,23 @@ export async function differential(file: string, opts: DiffOptions): Promise<Dif
   } finally {
     await runner.close();
   }
+}
+
+// Range analysis (`proof`) against every check retained (`full`, the
+// --no-bounds-elim path).
+export async function differential(file: string, opts: DiffOptions): Promise<DiffReport> {
+  const builds: Build[] = [
+    { name: 'full', compile: (src) => compileProgram(src, { skipRangeAnalysis: true }) },
+    { name: 'proof', compile: opts.compileProof ?? ((src) => compileProgram(src, {})) },
+  ];
+  const rep = await compareBuilds(file, builds, opts);
+  return {
+    program: rep.program,
+    cases: rep.cases,
+    timeouts: rep.timeouts,
+    compileError: rep.compileError,
+    mismatches: rep.mismatches.map((m) => ({ fn: m.fn, args: m.args, arrays: m.arrays, full: m.reference, proof: m.other })),
+  };
 }
 
 export function listPrograms(): string[] {

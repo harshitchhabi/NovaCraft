@@ -178,7 +178,11 @@ DEVLOG.md for the full rationale. `main` functions with no parameters (like
 - A mutable `i32` global `$sp`, initialized to `65536` (start of the second
   page): a downward-growing stack pointer for spill slots. Each call
   decrements it by its own frame's size in the prologue and restores it
-  before every `return`.
+  before every `return`. The stack is confined to `8192..65535`
+  (`STACK_LIMIT`): a prologue that would move `$sp` below `8192` traps with
+  check id `-1` in the side channel, reported as
+  `Runtime error: stack overflow`, so the stack never reaches the side
+  channel or the harness array region.
 - Three fixed offsets used as a trap side-channel (`src/stackFrame.ts`):
   `4096` (failing index), `4100` (failing length), `4104` (id of the
   `BoundsCheck` that fired, used to look up the source location in the
@@ -237,21 +241,26 @@ Run it with:
 npm run benchmark
 ```
 
-Representative output on this machine:
+Output measured during the audit (`docs/AUDIT.md`, section 1; Node
+v22.22.0, single run, after the A0 soundness fixes):
 
 ```
 --- sumArray (1 check/iteration: read) ---
-Checks eliminated (range analysis ON):  12.35 ms/call avg
-Checks retained   (range analysis OFF): 16.42 ms/call avg
-Speedup from elimination: 1.33x  (32.9% overhead removed)
-Both variants computed the correct result: 4000000.
+Checks eliminated (range analysis ON):  14.86 ms/call avg
+Checks retained   (range analysis OFF): 15.67 ms/call avg
+Speedup from elimination: 1.05x  (5.5% overhead removed)
 
 --- scaleArray (2 checks/iteration: read + write) ---
-Checks eliminated (range analysis ON):  10.20 ms/call avg
-Checks retained   (range analysis OFF): 17.82 ms/call avg
-Speedup from elimination: 1.75x  (74.7% overhead removed)
-Both variants computed the correct result: 1048576.
+Checks eliminated (range analysis ON):  10.17 ms/call avg
+Checks retained   (range analysis OFF): 13.47 ms/call avg
+Speedup from elimination: 1.33x  (32.5% overhead removed)
 ```
+
+These figures vary by machine, Node/V8 version and run: the benchmark
+reports a mean of 20 calls with no variance, and the run before the fixes
+on the same machine gave 1.04x and 1.34x. Treat them as indicative only;
+on this machine removing the single read check in `sumArray` saves little,
+while removing the read + write checks in `scaleArray` saves more.
 
 Both variants of each scenario are verified to compute the identical,
 correct result before any timing number is trusted — the benchmark is not

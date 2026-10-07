@@ -8,7 +8,16 @@
 // actually observable in the emitted code, not just a printed table.
 import { IRFunction, IRInstr, IRProgram, IRPrimType, IRValue } from './ir';
 import { allocateRegisters, AllocationResult } from './regalloc';
-import { computeFrame, spillOffset, SP_INITIAL, TRAP_INDEX_OFFSET, TRAP_LENGTH_OFFSET, TRAP_CHECK_ID_OFFSET } from './stackFrame';
+import {
+  computeFrame,
+  spillOffset,
+  SP_INITIAL,
+  STACK_LIMIT,
+  STACK_OVERFLOW_CHECK_ID,
+  TRAP_INDEX_OFFSET,
+  TRAP_LENGTH_OFFSET,
+  TRAP_CHECK_ID_OFFSET,
+} from './stackFrame';
 import { SourceMap, SourceMapEntry } from './sourcemap';
 
 function bank(type: IRPrimType): 'i' | 'f' {
@@ -151,6 +160,19 @@ class FuncCodegen {
     this.emit(`  i32.const ${frame.frameSize}`);
     this.emit('  i32.sub');
     this.emit('  local.set $frameBase');
+    if (frame.frameSize > 0) {
+      // Stack-limit check: trap cleanly rather than let the frame grow
+      // into the trap side channel / harness array region below the stack.
+      this.emit('  local.get $frameBase');
+      this.emit(`  i32.const ${STACK_LIMIT}`);
+      this.emit('  i32.lt_s');
+      this.emit('  if');
+      this.emit(`    i32.const ${TRAP_CHECK_ID_OFFSET}`);
+      this.emit(`    i32.const ${STACK_OVERFLOW_CHECK_ID}`);
+      this.emit('    i32.store');
+      this.emit('    unreachable');
+      this.emit('  end');
+    }
     this.emit('  local.get $frameBase');
     this.emit('  global.set $sp');
     for (const p of this.fn.params) {

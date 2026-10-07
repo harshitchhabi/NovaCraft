@@ -3,6 +3,13 @@ export const SP_INITIAL = 65536; // start of the second 64KiB page
 export const TRAP_INDEX_OFFSET = 4096; // failing array index, written before a trap
 export const TRAP_LENGTH_OFFSET = 4100; // failing array length, written before a trap
 export const TRAP_CHECK_ID_OFFSET = 4104; // id of the BoundsCheck that fired, correlates to the source map
+// The stack occupies [STACK_LIMIT, SP_INITIAL). A prologue that would move
+// $sp below STACK_LIMIT traps instead, so the stack can never overwrite the
+// trap side channel or the harness's array region below it.
+export const STACK_LIMIT = 8192;
+// Written to TRAP_CHECK_ID_OFFSET when the stack limit is hit (BoundsCheck
+// ids are always >= 0).
+export const STACK_OVERFLOW_CHECK_ID = -1;
 export const SPILL_SLOT_SIZE = 4; // bytes per spill slot (both i32 and f32 are 4 bytes)
 
 // An explicit per-function activation record: incoming params live in their

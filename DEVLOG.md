@@ -298,3 +298,29 @@ spec left open:
 - The differential fuzz harness runs each case in a worker thread with a
   400 ms budget; full-check runs that time out are counted and skipped,
   not compared.
+
+## Stack limit instead of a layout change
+
+The spill stack grows down from 65536 with no bound; deep recursion in a
+function with spill slots ran it through the trap side channel (4096) and
+the harness array region (0..4095) before hitting an out-of-bounds memory
+trap (measured: 8171 of the 8192 bytes below 8192 overwritten by
+`tests/fixtures/soundness/deepRecursion.min`). Chosen fix: a stack-limit
+check in the prologue of every function with a non-empty frame
+(`src/codegen.ts`): if `frameBase < STACK_LIMIT` (8192), write
+`STACK_OVERFLOW_CHECK_ID` (-1) to the check-id slot and trap; the harness
+reports it as `Runtime error: stack overflow`. Rejected alternative: moving
+the stack above the arrays, which would change the layout the CLI,
+benchmark and tests already rely on, and still leave the stack unbounded
+against whatever lies below it. Frameless functions are not checked; their
+recursion is bounded by the engine's own call-stack limit.
+
+## Register-budget differential test
+
+`tests/regBudget.test.ts` compiles every program with budgets 2, 3, 4, 8.
+Two normalizations: memory is compared outside the stack region
+[8192, 65536) (spill-slot contents legitimately differ), and stack
+exhaustion (the stack-limit trap or a host RangeError) compares equal
+regardless of where it happened. Fuzzed length arguments are kept <= the
+real array length, since a larger one lets a program legitimately read and
+write into its own spill slots, whose layout is what the test varies.

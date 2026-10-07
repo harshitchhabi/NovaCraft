@@ -179,14 +179,20 @@ did not make it.
 
 ## 6. Still open / not done in A0
 
-- README benchmark figures (section 1) are not reproduced; left for A3/A5.
+- README benchmark figures (section 1) are not reproduced. *Fixed after A0:
+  the README now quotes the post-fix run above and says figures vary by
+  machine (`tests/docs.test.ts`).*
 - The register allocator, codegen and stack-frame code were read but not
   audited in depth; the differential test exercises them only in so far as
   both builds share them, so a bug that affects both builds identically
   (like B5) is invisible to it.
 - The `$sp` stack grows down from 65536 with no overflow check; deep
   recursion with spill slots can write into low memory, where test arrays
-  live. Same in both builds; not a bounds-check issue; not fixed.
+  live. Same in both builds; not a bounds-check issue. *Fixed after A0: a
+  prologue stack-limit check (`tests/stackLimit.test.ts`, DEVLOG.md).*
+- *Added after A0:* `tests/regBudget.test.ts` compares register budgets 2,
+  3, 4 and 8 on every program; it fails on 12 of 20 programs if the
+  allocator's loop-carried liveness fix is reverted.
 - Float constant folding now rounds to f32, but no test demonstrates a case
   where the old f64 folding gave a different answer (the 0.1 + 0.2 test
   passes on the old code too).
