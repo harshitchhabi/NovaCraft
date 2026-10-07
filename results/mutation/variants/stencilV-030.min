@@ -1,0 +1,14 @@
+// mutation stencilV-030: index-is-length at 10:12 (dst[e] to dst[dlen])
+func stencilV(src: int[], slen: int, dst: int[], dlen: int) -> int {
+    let last: int = (slen - 1);
+    let i: int = 1;
+    while ((i < last)) {
+        dst[i] = ((src[(i - 1)] + src[i]) + src[(i + 1)]);
+        i = (i + 1);
+    }
+    return dst[dlen];
+}
+
+func main() -> int {
+    return 0;
+}

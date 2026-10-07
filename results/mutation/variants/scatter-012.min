@@ -1,0 +1,11 @@
+// mutation scatter-012: write-index-external at 4:9 (out[e] = ... to out[alen] = ...)
+func scatter(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; (i < alen); i = (i + 1)) {
+        out[alen] = a[i];
+    }
+    return out[0];
+}
+
+func main() -> int {
+    return 0;
+}

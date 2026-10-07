@@ -442,3 +442,35 @@ plots, sweep), reports checks, guards and their total separately, keeps the
 A3 checks-only numbers in columns labelled "A3 accounting", and adds code
 size per configuration. Only the report changed: the raw A3 CSVs and
 `eval/run.ts` are untouched, and RESULTS.md was regenerated from them.
+
+## A3b: preregistered mutation-corpus evaluation
+
+- `docs/PREREGISTRATION.md` (committed in b3215f9, before any mutation
+  result) fixes H1/H2, metrics, CI method and corpus rules; policies and
+  weights frozen at b1f11bc. Deviations are appended to that file.
+- Only compiler change after the freeze: an opt-in deterministic loop-fuel
+  build option (`fuel`, codegen.ts; FUEL_EXHAUSTED_CHECK_ID = -2), so
+  mutants with unbounded loops end deterministically instead of by a
+  wall-clock timeout. Off by default; the generated code for every A3
+  configuration was checked to be byte-identical with and without the
+  change.
+- `eval/mutation/printer.ts` prints an AST back to source (fully
+  parenthesized); every kernel round-trips to identical WAT.
+  `eval/mutation/operators.ts` enumerates the preregistered operators on the
+  original AST by node path and applies one per variant on a clone.
+- The mutation tooling lives in `eval/mutate.ts` and `eval/mutation/` and
+  does not touch `eval/run.ts`, `eval/exec.ts` or the A3 results.
+- Fuzzed inputs (`eval/mutation/inputs.ts`): 200 per kernel, seeded,
+  honest lengths and each kernel's own preconditions (e.g. `smooth` needs
+  n > k because it returns `dst[k]`); `checkOriginals` verifies every
+  original kernel is clean under `full` on all of them before any mutant
+  runs.
+- Outcomes of identical wasm binaries are computed once per variant (cache
+  by binary hash); many configurations compile to the same code.
+- `npm run eval:mutation` generates the corpus, evaluates it twice and
+  diffs the two runs; a third run (after adding the secondary attribution
+  column) reproduced `outcomes.csv` byte for byte.
+- `silent.csv` is aggregated per (variant, config, attributed site); see
+  Deviations 4 in the preregistration for the secondary attribution.
+- New policy ideas from these results went to `docs/FUTURE.md`, not into
+  the code.

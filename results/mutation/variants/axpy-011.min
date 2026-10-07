@@ -1,0 +1,11 @@
+// mutation axpy-011: swap-index-var at 4:33 (i to ylen in y[...])
+func axpy(x: int[], xlen: int, y: int[], ylen: int, alpha: int, n: int) -> int {
+    for (let i: int = 0; (i < n); i = (i + 1)) {
+        y[i] = ((alpha * x[i]) + y[ylen]);
+    }
+    return y[0];
+}
+
+func main() -> int {
+    return 0;
+}

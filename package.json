@@ -12,7 +12,8 @@
     "novac": "ts-node src/cli.ts",
     "benchmark": "ts-node benchmark/boundsCheckBenchmark.ts",
     "anomaly": "ts-node tools/anomaly-cli.ts",
-    "eval": "ts-node eval/run.ts && ts-node eval/report.ts"
+    "eval": "ts-node eval/run.ts && ts-node eval/report.ts",
+    "eval:mutation": "ts-node eval/mutation/all.ts"
   },
   "license": "MIT",
   "devDependencies": {

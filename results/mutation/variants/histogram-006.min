@@ -1,0 +1,12 @@
+// mutation histogram-006: swap-index-var at 4:27 (i to dlen in data[...])
+func histogram(data: int[], dlen: int, hist: int[], hlen: int) -> int {
+    for (let i: int = 0; (i < dlen); i = (i + 1)) {
+        let b: int = data[dlen];
+        hist[b] = (hist[b] + 1);
+    }
+    return hist[0];
+}
+
+func main() -> int {
+    return 0;
+}

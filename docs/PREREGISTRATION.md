@@ -153,3 +153,35 @@ silent-corruption cases with the omitted site that caused them (the check
 that fired under `full` on that input, its position, access, P, C, W, R and
 the configuration's decision for it); variants generated, not compilable,
 not triggerable and kept, per operator and per kernel.
+
+## Deviations
+
+Recorded after the runs; none changes a policy, weight, threshold, input,
+operator definition or hypothesis criterion.
+
+1. **Duplicate variants removed.** Different operators can produce the same
+   program (e.g. `write-index-external` with parameter `n` and
+   `swap-index-var` replacing `i` by `n` in a write index both give
+   `y[n] = ...`). The preregistration did not say how to treat identical
+   programs. Each kernel's variants are deduplicated by program text, keeping
+   the first in enumeration order; 69 duplicates were removed (28 of them
+   `write-index-external`, 41 `index-is-length`). Without this, identical
+   programs would be counted more than once.
+2. **Fallback operators were added a whole operator at a time.** Operators
+   1-8 kept 288 variants (< 300). Fallback (A) `if-lt-to-le` added 2
+   variants, both not triggerable; fallback (B) `index-is-length` was then
+   applied to all kernels and brought the total to 305 kept. The 300 check
+   is made between operators, not part-way through one.
+3. **H2 bootstrap resamples where chuang's cost falls outside a family's
+   cost range** (33 of 2000 for each family) make the interpolated
+   statistic undefined; they are excluded from that CI and their number is
+   reported next to it. In the full sample chuang's cost is inside both
+   families' ranges, so H2 is testable for both.
+4. **`silent.csv` is aggregated** to one row per (variant, configuration,
+   attributed site) with the number of inputs, instead of one row per run
+   (11 MB). After the first run showed that the attributed site (the check
+   that fired first under `full`) is often a read, which cannot itself
+   corrupt memory, a **secondary attribution** column was added: the write
+   sites the configuration omits in that variant. The preregistered
+   attribution is unchanged and still reported. The outcomes of the run
+   with this column are byte-identical to the first run's.

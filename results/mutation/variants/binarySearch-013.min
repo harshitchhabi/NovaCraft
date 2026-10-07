@@ -1,0 +1,33 @@
+// mutation binarySearch-013: swap-index-var at 14:34 (mid to len in arr[...])
+func binarySearch(arr: int[], len: int, queries: int[], qlen: int) -> int {
+    let found: int = 0;
+    for (let q: int = 0; (q < qlen); q = (q + 1)) {
+        let key: int = queries[q];
+        let lo: int = 0;
+        let hi: int = (len - 1);
+        let searching: bool = true;
+        while (searching) {
+            if ((lo > hi)) {
+                searching = false;
+            } else {
+                let mid: int = ((lo + hi) / 2);
+                let v: int = arr[len];
+                if ((v == key)) {
+                    found = (found + 1);
+                    searching = false;
+                } else {
+                    if ((v < key)) {
+                        lo = (mid + 1);
+                    } else {
+                        hi = (mid - 1);
+                    }
+                }
+            }
+        }
+    }
+    return found;
+}
+
+func main() -> int {
+    return 0;
+}

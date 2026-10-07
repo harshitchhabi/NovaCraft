@@ -292,6 +292,13 @@ just measuring two programs that happen to run at different speeds, it's
 measuring the *same* proven result reached with and without paying for the
 check(s).
 
+## Evaluation
+
+`npm run eval` runs the benchmark kernels, bug corpus and policy sweeps and
+writes `results/RESULTS.md`; `npm run eval:mutation` runs the preregistered
+mutation-corpus evaluation (`docs/PREREGISTRATION.md`) and writes
+`results/mutation/RESULTS.md`. Both reports are generated from raw CSVs.
+
 ## Common-subexpression elimination
 
 `src/optimize/cse.ts` runs after range analysis (deliberately — CSE could

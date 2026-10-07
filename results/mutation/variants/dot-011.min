@@ -1,0 +1,12 @@
+// mutation dot-011: swap-index-var at 5:26 (i to alen in b[...])
+func dot(a: int[], alen: int, b: int[], blen: int) -> int {
+    let s: int = 0;
+    for (let i: int = 0; (i < alen); i = (i + 1)) {
+        s = (s + (a[i] * b[alen]));
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

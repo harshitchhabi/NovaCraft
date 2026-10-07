@@ -29,6 +29,8 @@ export interface CompileOptions {
   weights?: RiskWeights;
   // Counter-instrumented build (exports `checkCount`), see codegen.ts.
   countChecks?: boolean;
+  // Deterministic loop-fuel limit (codegen.ts); off by default.
+  fuel?: number;
 }
 
 export interface IRStage {
@@ -91,6 +93,6 @@ export function compileProgram(source: string, opts: CompileOptions = {}): Compi
   ir = deadCodeElimination(ir);
   stages.push({ label: 'after final dead-code elimination', ir });
 
-  const codegen = generateModule(ir, regBudget, { countChecks: opts.countChecks });
+  const codegen = generateModule(ir, regBudget, { countChecks: opts.countChecks, fuel: opts.fuel });
   return { program, stages, finalIR: ir, codegen, hardening: hardened.report };
 }

@@ -1,0 +1,11 @@
+// mutation gather-022: index-is-length at 4:18 (a[e] to a[alen])
+func gather(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; (i < ilen); i = (i + 1)) {
+        out[i] = a[alen];
+    }
+    return out[0];
+}
+
+func main() -> int {
+    return 0;
+}

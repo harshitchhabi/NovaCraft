@@ -1,0 +1,11 @@
+// mutation gather-014: swap-index-var at 4:13 (i to alen in out[...])
+func gather(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; (i < ilen); i = (i + 1)) {
+        out[alen] = a[idx[i]];
+    }
+    return out[0];
+}
+
+func main() -> int {
+    return 0;
+}

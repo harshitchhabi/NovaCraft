@@ -1,0 +1,25 @@
+// mutation insertionSort-011: remove-guard at 14:17 (if (c) {A} else {B} to A)
+func insertionSort(arr: int[], len: int) -> int {
+    for (let i: int = 1; (i < len); i = (i + 1)) {
+        let key: int = arr[i];
+        let j: int = (i - 1);
+        let moving: bool = true;
+        while (moving) {
+            if ((j < 0)) {
+                moving = false;
+            } else {
+                let v: int = arr[j];
+                if (true) {
+                    arr[(j + 1)] = v;
+                    j = (j - 1);
+                }
+            }
+        }
+        arr[(j + 1)] = key;
+    }
+    return arr[0];
+}
+
+func main() -> int {
+    return 0;
+}

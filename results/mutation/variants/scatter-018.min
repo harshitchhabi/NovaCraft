@@ -1,0 +1,11 @@
+// mutation scatter-018: swap-index-var at 4:17 (i to ilen in idx[...])
+func scatter(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; (i < alen); i = (i + 1)) {
+        out[idx[ilen]] = a[i];
+    }
+    return out[0];
+}
+
+func main() -> int {
+    return 0;
+}

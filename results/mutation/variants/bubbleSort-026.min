@@ -1,0 +1,18 @@
+// mutation bubbleSort-026: swap-index-var at 9:21 (j to i in arr[...])
+func bubbleSort(arr: int[], len: int) -> int {
+    for (let i: int = 0; (i < (len - 1)); i = (i + 1)) {
+        for (let j: int = 0; (j < ((len - 1) - i)); j = (j + 1)) {
+            let x: int = arr[j];
+            let y: int = arr[(j + 1)];
+            if ((x > y)) {
+                arr[j] = y;
+                arr[(i + 1)] = x;
+            }
+        }
+    }
+    return arr[0];
+}
+
+func main() -> int {
+    return 0;
+}

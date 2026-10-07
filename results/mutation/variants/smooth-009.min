@@ -1,0 +1,19 @@
+// mutation smooth-009: swap-index-var at 9:25 (j to s in src[...])
+func smooth(src: int[], slen: int, dst: int[], dlen: int, k: int) -> int {
+    let i: int = k;
+    while ((i < (slen - k))) {
+        let s: int = 0;
+        let j: int = (i - k);
+        while ((j <= (i + k))) {
+            s = (s + src[s]);
+            j = (j + 1);
+        }
+        dst[i] = (s / ((2 * k) + 1));
+        i = (i + 1);
+    }
+    return dst[k];
+}
+
+func main() -> int {
+    return 0;
+}

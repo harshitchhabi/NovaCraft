@@ -1,0 +1,11 @@
+// mutation gather-008: index-minus-one at 4:20 (idx[e] to idx[e - 1])
+func gather(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; (i < ilen); i = (i + 1)) {
+        out[i] = a[idx[(i - 1)]];
+    }
+    return out[0];
+}
+
+func main() -> int {
+    return 0;
+}

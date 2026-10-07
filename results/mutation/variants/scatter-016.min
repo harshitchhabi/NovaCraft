@@ -1,0 +1,11 @@
+// mutation scatter-016: index-minus-one at 4:13 (idx[e] to idx[e - 1])
+func scatter(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; (i < alen); i = (i + 1)) {
+        out[idx[(i - 1)]] = a[i];
+    }
+    return out[0];
+}
+
+func main() -> int {
+    return 0;
+}

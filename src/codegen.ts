@@ -14,6 +14,7 @@ import {
   SP_INITIAL,
   STACK_LIMIT,
   STACK_OVERFLOW_CHECK_ID,
+  FUEL_EXHAUSTED_CHECK_ID,
   TRAP_INDEX_OFFSET,
   TRAP_LENGTH_OFFSET,
   TRAP_CHECK_ID_OFFSET,
@@ -79,6 +80,7 @@ class FuncCodegen {
     private readonly regTypes: Map<string, IRPrimType>,
     private readonly regBudget: number,
     private readonly countChecks = false,
+    private readonly fuel = false,
   ) {}
 
   private emit(line: string): void {
@@ -479,6 +481,23 @@ class FuncCodegen {
     const exitLabel = `$loop${id}_exit`;
     this.emit(`${pad}block ${exitLabel}`);
     this.emit(`${pad}  loop ${contLabel}`);
+    if (this.fuel) {
+      // Fuel-limited build: every loop-head visit costs one unit; running
+      // out traps deterministically with FUEL_EXHAUSTED_CHECK_ID.
+      this.emit(`${pad}    global.get $fuel`);
+      this.emit(`${pad}    i32.const 1`);
+      this.emit(`${pad}    i32.sub`);
+      this.emit(`${pad}    global.set $fuel`);
+      this.emit(`${pad}    global.get $fuel`);
+      this.emit(`${pad}    i32.const 0`);
+      this.emit(`${pad}    i32.lt_s`);
+      this.emit(`${pad}    if`);
+      this.emit(`${pad}      i32.const ${TRAP_CHECK_ID_OFFSET}`);
+      this.emit(`${pad}      i32.const ${FUEL_EXHAUSTED_CHECK_ID}`);
+      this.emit(`${pad}      i32.store`);
+      this.emit(`${pad}      unreachable`);
+      this.emit(`${pad}    end`);
+    }
     this.emitList(instr.condInstrs, depth + 2);
     this.loadValuePadded(instr.cond, pad + '    ');
     this.emit(`${pad}    i32.eqz`);
@@ -495,6 +514,10 @@ export interface CodegenOptions {
   // global exported as `checkCount`, every executed loop-versioning guard
   // one exported as `guardCount` (deterministic dynamic counts).
   countChecks?: boolean;
+  // Deterministic loop fuel: when set, each run may visit loop heads at most
+  // this many times in total (the global is exported as `fuel` so a host
+  // can reset it between calls); exhausting it traps.
+  fuel?: number;
 }
 
 export function generateModule(program: IRProgram, regBudget: number, opts: CodegenOptions = {}): CodegenResult {
@@ -503,6 +526,10 @@ export function generateModule(program: IRProgram, regBudget: number, opts: Code
   lines.push('  (import "env" "print" (func $print (param i32)))');
   lines.push('  (memory (export "memory") 1)');
   lines.push(`  (global $sp (mut i32) (i32.const ${SP_INITIAL}))`);
+  if (opts.fuel !== undefined) {
+    lines.push(`  (global $fuel (mut i32) (i32.const ${opts.fuel}))`);
+    lines.push('  (export "fuel" (global $fuel))');
+  }
   if (opts.countChecks) {
     lines.push('  (global $check_count (mut i32) (i32.const 0))');
     lines.push('  (export "checkCount" (global $check_count))');
@@ -517,7 +544,7 @@ export function generateModule(program: IRProgram, regBudget: number, opts: Code
     const alloc = allocateRegisters(fn, regBudget);
     allocations.set(fn.name, alloc);
     const regTypes = collectRegTypes(fn);
-    const gen = new FuncCodegen(fn, alloc, regTypes, regBudget, !!opts.countChecks);
+    const gen = new FuncCodegen(fn, alloc, regTypes, regBudget, !!opts.countChecks, opts.fuel !== undefined);
     const result = gen.generate();
     for (const l of result.wat) lines.push('  ' + l);
     sourceMapEntries.push(...result.sourceMap);

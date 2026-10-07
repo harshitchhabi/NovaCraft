@@ -1,0 +1,11 @@
+// mutation gather-004: swap-length at 3:30 (ilen to olen)
+func gather(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; (i < olen); i = (i + 1)) {
+        out[i] = a[idx[i]];
+    }
+    return out[0];
+}
+
+func main() -> int {
+    return 0;
+}

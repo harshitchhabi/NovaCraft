@@ -1,0 +1,15 @@
+// mutation reverse-024: swap-index-var at 8:13 (j to i in arr[...])
+func reverse(arr: int[], len: int) -> int {
+    let half: int = (len / 2);
+    for (let i: int = 0; (i < half); i = (i + 1)) {
+        let j: int = ((len - 1) - i);
+        let t: int = arr[i];
+        arr[i] = arr[j];
+        arr[i] = t;
+    }
+    return arr[0];
+}
+
+func main() -> int {
+    return 0;
+}
