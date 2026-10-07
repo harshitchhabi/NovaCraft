@@ -27,6 +27,13 @@ export const INT_MIN = -2147483648;
 // Arrays are placed in the low reserved region (below the trap side channel
 // at 4096), ARRAY_STRIDE bytes apart, like the CLI's --run driver does.
 const ARRAY_BASE = 0;
+// Alternative base above the spill stack ([8192, 65536)), the A3
+// evaluation layout. With arrays below the stack, a fuzzed length argument
+// larger than the real array lets a program's (checked, "in bounds")
+// accesses run upward into its own spill slots, after which no property
+// relates two builds with different register allocation. A4's tests use
+// this base; memory is grown to fit.
+export const ABOVE_STACK_BASE = 65536;
 const ARRAY_STRIDE = 512;
 const MAX_ARRAY_LEN = 24;
 
@@ -99,7 +106,7 @@ class Runner {
     if (this.worker) this.worker.postMessage({ type: 'load', key, bytes });
   }
 
-  run(key: string, fn: string, args: number[], arrays: number[][], timeoutMs: number): Promise<Outcome | 'timeout'> {
+  run(key: string, fn: string, args: number[], arrays: number[][], timeoutMs: number, arrayBase = ARRAY_BASE): Promise<Outcome | 'timeout'> {
     const w = this.ensure();
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
@@ -131,7 +138,7 @@ class Runner {
         fn,
         args,
         arrays,
-        arrayBase: ARRAY_BASE,
+        arrayBase,
         arrayStride: ARRAY_STRIDE,
         trapOffsets: { index: TRAP_INDEX_OFFSET, length: TRAP_LENGTH_OFFSET, checkId: TRAP_CHECK_ID_OFFSET },
         stackRegion: [STACK_LIMIT, SP_INITIAL],
@@ -153,7 +160,7 @@ const ELEMS = [0, 1, -1, 2, 3, 5, 8, 100, -100, INT_MAX, INT_MIN];
 // sometimes the true length and sometimes shorter, longer, or extreme.
 // With `inBounds`, a length argument never exceeds the real array length, so
 // every access that passes its check stays inside the array.
-export function fuzzArgs(fn: IRFunction, r: () => number, inBounds = false): { args: number[]; arrays: number[][] } {
+export function fuzzArgs(fn: IRFunction, r: () => number, inBounds = false, arrayBase = ARRAY_BASE): { args: number[]; arrays: number[][] } {
   const arrays: number[][] = [];
   const arrayIndex = new Map<string, number>();
   for (const p of fn.params) {
@@ -170,7 +177,7 @@ export function fuzzArgs(fn: IRFunction, r: () => number, inBounds = false): { a
     if (k !== undefined) lengthOf.set(lenParam, arrays[k].length);
   }
   const args = fn.params.map((p) => {
-    if (p.isArray) return ARRAY_BASE + arrayIndex.get(p.name)! * ARRAY_STRIDE;
+    if (p.isArray) return arrayBase + arrayIndex.get(p.name)! * ARRAY_STRIDE;
     if (p.type === 'float') return pick(r, [0, 1.5, -2.25, 1e9, -1e9]);
     if (p.type === 'bool') return r() < 0.5 ? 0 : 1;
     const actual = lengthOf.get(p.name);
@@ -202,6 +209,8 @@ export interface DiffOptions {
   timeoutMs?: number;
   // Only generate length arguments <= the real array length (see fuzzArgs).
   inBoundsLengths?: boolean;
+  // Where arrays are placed (default 0, below the stack; see ABOVE_STACK_BASE).
+  arrayBase?: number;
 }
 
 export interface Build {
@@ -265,9 +274,9 @@ export async function compareBuilds(file: string, builds: Build[], opts: DiffOpt
     for (const fn of compiled[0].finalIR.functions) {
       const n = fn.params.length === 0 ? 1 : opts.casesPerFn;
       for (let c = 0; c < n; c++) {
-        const { args, arrays } = fuzzArgs(fn, r, opts.inBoundsLengths);
+        const { args, arrays } = fuzzArgs(fn, r, opts.inBoundsLengths, opts.arrayBase);
         const t0 = Date.now();
-        const refRun = await runner.run(builds[0].name, fn.name, args, arrays, timeoutMs);
+        const refRun = await runner.run(builds[0].name, fn.name, args, arrays, timeoutMs, opts.arrayBase);
         if (refRun === 'timeout') {
           timeouts++;
           continue;
@@ -278,7 +287,7 @@ export async function compareBuilds(file: string, builds: Build[], opts: DiffOpt
         const budget = Math.max(timeoutMs, 10 * (Date.now() - t0) + 200);
         cases++;
         for (const b of builds.slice(1)) {
-          const run = await runner.run(b.name, fn.name, args, arrays, budget);
+          const run = await runner.run(b.name, fn.name, args, arrays, budget, opts.arrayBase);
           const other: Outcome =
             run === 'timeout' ? { kind: 'host-error', trap: 'timeout', printed: [], memoryHash: '' } : normalize(run);
           if (JSON.stringify(reference) !== JSON.stringify(other)) {
@@ -308,6 +317,61 @@ export async function differential(file: string, opts: DiffOptions): Promise<Dif
     compileError: rep.compileError,
     mismatches: rep.mismatches.map((m) => ({ fn: m.fn, args: m.args, arrays: m.arrays, full: m.reference, proof: m.other })),
   };
+}
+
+export interface RunCase {
+  fn: string;
+  args: number[];
+  arrays: number[][];
+  outcome: Outcome;
+}
+
+// Every fuzzed run of one build (same input sequence as compareBuilds for
+// the same seed), for properties about individual outcomes.
+export async function runCases(
+  file: string,
+  build: Build,
+  opts: DiffOptions,
+): Promise<{ program: string; cases: RunCase[]; timeouts: number; compileError?: string }> {
+  const source = fs.readFileSync(file, 'utf-8');
+  const program = path.basename(file);
+  let compiled: CompileResult;
+  try {
+    compiled = build.compile(source);
+  } catch (e) {
+    return { program, cases: [], timeouts: 0, compileError: String(e) };
+  }
+  const runner = new Runner();
+  try {
+    runner.load(build.name, await toBinary(compiled.codegen.wat));
+    const r = rng(opts.seed ?? 1);
+    const cases: RunCase[] = [];
+    let timeouts = 0;
+    for (const fn of compiled.finalIR.functions) {
+      const n = fn.params.length === 0 ? 1 : opts.casesPerFn;
+      for (let c = 0; c < n; c++) {
+        const { args, arrays } = fuzzArgs(fn, r, opts.inBoundsLengths, opts.arrayBase);
+        const o = await runner.run(build.name, fn.name, args, arrays, opts.timeoutMs ?? 400, opts.arrayBase);
+        if (o === 'timeout') timeouts++;
+        else cases.push({ fn: fn.name, args, arrays, outcome: o });
+      }
+    }
+    return { program, cases, timeouts };
+  } finally {
+    await runner.close();
+  }
+}
+
+// Every .min program the A4 equivalence and soundness tests cover:
+// examples/, bench/, bench/bugs/, and the test fixtures.
+export function listAllPrograms(): string[] {
+  const root = path.join(__dirname, '..');
+  const extra = [path.join(root, 'bench'), path.join(root, 'bench', 'bugs')];
+  const out = [...listPrograms()];
+  for (const d of extra) {
+    for (const f of fs.readdirSync(d).sort()) if (f.endsWith('.min')) out.push(path.join(d, f));
+  }
+  return out;
 }
 
 export function listPrograms(): string[] {

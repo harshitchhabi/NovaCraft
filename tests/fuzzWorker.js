@@ -25,6 +25,9 @@ parentPort.on('message', (m) => {
   const printed = [];
   const instance = new WebAssembly.Instance(modules.get(m.key), { env: { print: (v) => printed.push(v) } });
   const memory = instance.exports.memory;
+  const needed = m.arrayBase + m.arrays.length * m.arrayStride;
+  const pages = Math.ceil(needed / 65536);
+  if (pages > memory.buffer.byteLength / 65536) memory.grow(pages - memory.buffer.byteLength / 65536);
   m.arrays.forEach((arr, k) => new Int32Array(memory.buffer, m.arrayBase + k * m.arrayStride, arr.length).set(arr));
   let o;
   try {
