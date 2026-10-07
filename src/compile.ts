@@ -10,6 +10,8 @@ import { deadCodeElimination } from './optimize/deadCode';
 import { rangeAnalysis } from './optimize/rangeAnalysis';
 import { commonSubexprElimination } from './optimize/cse';
 import { generateModule } from './codegen';
+import { harden, HardeningReport } from './harden/harden';
+import { DEFAULT_POLICY, DEFAULT_WEIGHTS, Policy, RiskWeights, parsePolicy } from './harden/config';
 import { CodegenResult } from './codegen';
 import { ErrorReporter, CompilerError } from './errors';
 import * as AST from './ast';
@@ -21,6 +23,12 @@ export interface CompileOptions {
   // measure the elimination pass's real impact by compiling the same
   // program both with and without it.
   skipRangeAnalysis?: boolean;
+  // Hardening policy (--harden=); default `proof`, or `full` when
+  // skipRangeAnalysis is set. An explicit policy wins.
+  harden?: Policy | string;
+  weights?: RiskWeights;
+  // Counter-instrumented build (exports `checkCount`), see codegen.ts.
+  countChecks?: boolean;
 }
 
 export interface IRStage {
@@ -33,6 +41,7 @@ export interface CompileResult {
   stages: IRStage[];
   finalIR: IRProgram;
   codegen: CodegenResult;
+  hardening: HardeningReport;
 }
 
 export class CompileError extends Error {
@@ -61,10 +70,20 @@ export function compileProgram(source: string, opts: CompileOptions = {}): Compi
   ir = deadCodeElimination(ir);
   stages.push({ label: 'after dead-code elimination', ir });
 
-  if (!opts.skipRangeAnalysis) {
-    ir = rangeAnalysis(ir);
-    stages.push({ label: 'after range analysis (bounds-check elimination)', ir });
-  }
+  const policy: Policy =
+    typeof opts.harden === 'string'
+      ? parsePolicy(opts.harden)
+      : opts.harden ?? (opts.skipRangeAnalysis ? { kind: 'full', name: 'full' } : DEFAULT_POLICY);
+
+  // Range analysis only annotates checks (proven / which half proven); the
+  // hardening pass turns that into decisions, so `full` (no elimination)
+  // still gets proof-gap values in its report.
+  ir = rangeAnalysis(ir);
+  stages.push({ label: 'after range analysis (bounds-check elimination)', ir });
+
+  const hardened = harden(ir, policy, opts.weights ?? DEFAULT_WEIGHTS);
+  ir = hardened.program;
+  stages.push({ label: `after hardening (policy ${policy.name})`, ir });
 
   ir = commonSubexprElimination(ir);
   stages.push({ label: 'after common-subexpression elimination', ir });
@@ -72,6 +91,6 @@ export function compileProgram(source: string, opts: CompileOptions = {}): Compi
   ir = deadCodeElimination(ir);
   stages.push({ label: 'after final dead-code elimination', ir });
 
-  const codegen = generateModule(ir, regBudget);
-  return { program, stages, finalIR: ir, codegen };
+  const codegen = generateModule(ir, regBudget, { countChecks: opts.countChecks });
+  return { program, stages, finalIR: ir, codegen, hardening: hardened.report };
 }

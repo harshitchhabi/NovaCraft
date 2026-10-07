@@ -74,7 +74,9 @@ source (.min)
   -> IR generation    (src/ir.ts)           three-address IR + BoundsCheck insertion
   -> Constant folding (src/optimize/constantFold.ts)
   -> Dead-code elim.  (src/optimize/deadCode.ts)
-  -> Range analysis   (src/optimize/rangeAnalysis.ts)   bounds-check elimination
+  -> Range analysis   (src/optimize/rangeAnalysis.ts)   proves checks (each bound separately)
+  -> Hardening        (src/harden/)         per-site risk score + policy: eliminate / hoist / retain / omit,
+                                            loop versioning for hoisted checks
   -> CSE               (src/optimize/cse.ts)   common-subexpression elimination
   -> Dead-code elim.  (src/optimize/deadCode.ts)   (again, to clean up after CSE)
   -> Register alloc   (src/regalloc.ts)     linear scan, 4-register budget, spilling
@@ -128,9 +130,31 @@ novac <file.min> [options]
   --run             assemble, instantiate, and execute (calls `main`), printing program output
   --reg-budget N    override the register budget (default 4)
   --stats           print bounds-check elimination stats even without --emit-ir
-  --no-bounds-elim  skip the range-analysis pass, retaining every BoundsCheck
+  --no-bounds-elim  retain every BoundsCheck (same as --harden=full)
                     (for comparison -- see "Does the elimination actually matter?" below)
+  --harden=POLICY   bounds-check policy (default: proof):
+                      none          no checks at all
+                      full          every check, no elimination
+                      proof         eliminate proven checks, retain the rest
+                      strict        proof + hoisting by loop versioning; never omits
+                      balanced      omit unproven checks with risk R < 0.5, hoist/retain the rest
+                      performance   same with R < 0.8
+                      threshold:T   same with R < T
+                      budget:F      keep checks by descending R/cost until their cost is at
+                                    most fraction F of the full-check cost, omit the rest
+                      chuang        approximation of Chuang et al. 2007: retain unproven
+                                    writes, omit unproven reads
+  --risk-weights=wP,wC,wW   override the risk weights (default 0.40,0.35,0.25)
+  --harden-report=FILE      write the per-site hardening report as JSON
 ```
+
+With `--stats` or `--emit-ir` the per-site hardening report is also printed
+(site id, line:col, read/write, P, C, W, R, loop depth D, decision). The risk
+of an unproven site is `R = wP*P + wC*C + wW*W`: P = 1 if the index depends
+on an entry-point parameter (`src/harden/taint.ts`), C = proof gap (0.5 if
+one bound is proven, 1 if neither), W = 1 for a store. Only the threshold,
+budget, chuang and none policies omit checks, and omitting is unsound by
+design. `strict` is tested to be observably identical to `full`.
 
 Run it via `npx ts-node src/cli.ts <file> [options]`, or `npm run novac --
 <file> [options]`, or `node bin/novac.js <file> [options]` (the packaged

@@ -38,6 +38,19 @@ export interface Pos {
 
 export type BinOp = '+' | '-' | '*' | '/' | '%' | '==' | '!=' | '<' | '<=' | '>' | '>=' | '&&' | '||';
 
+// Per-site hardening decision (src/harden). Absent on IR that has not been
+// through the hardening pass, in which case `eliminated` alone decides.
+export type Decision = 'eliminate' | 'hoist' | 'retain' | 'omit';
+
+// One conjunct of a loop-versioning guard: lhs + lhsAdd <= rhs + rhsAdd,
+// evaluated in exact (64-bit) arithmetic so it cannot wrap.
+export interface GuardTerm {
+  lhs: IRValue;
+  lhsAdd: number;
+  rhs: IRValue;
+  rhsAdd: number;
+}
+
 export type IRInstr =
   | { op: 'const'; dest: string; value: number; type: IRPrimType; pos: Pos }
   | { op: 'binop'; dest: string; bop: BinOp; left: IRValue; right: IRValue; type: IRPrimType; pos: Pos }
@@ -49,8 +62,13 @@ export type IRInstr =
       index: IRValue;
       length: IRValue;
       arrayName: string;
+      access: 'read' | 'write';
       pos: Pos;
-      eliminated?: boolean;
+      eliminated?: boolean; // range analysis proved both bounds
+      provenLo?: boolean; // range analysis proved index >= 0
+      provenHi?: boolean; // range analysis proved index < length
+      decision?: Decision;
+      fastPath?: boolean; // inside the fast copy of a versioned loop
     }
   | { op: 'arrload'; dest: string; base: IRValue; index: IRValue; type: IRPrimType; pos: Pos }
   | { op: 'arrstore'; base: IRValue; index: IRValue; value: IRValue; type: IRPrimType; pos: Pos }
@@ -58,7 +76,16 @@ export type IRInstr =
   | { op: 'return'; value: IRValue | null; pos: Pos }
   | { op: 'print'; value: IRValue; pos: Pos }
   | { op: 'if'; cond: IRValue; thenBody: IRInstr[]; elseBody: IRInstr[] | null; pos: Pos }
-  | { op: 'while'; condInstrs: IRInstr[]; cond: IRValue; body: IRInstr[]; pos: Pos };
+  | { op: 'while'; condInstrs: IRInstr[]; cond: IRValue; body: IRInstr[]; pos: Pos }
+  | { op: 'guard'; dest: string; terms: GuardTerm[]; pos: Pos };
+
+// Whether codegen emits a runtime test for this BoundsCheck.
+export function checkEmitted(i: Extract<IRInstr, { op: 'boundscheck' }>): boolean {
+  if (i.decision === undefined) return !i.eliminated;
+  if (i.decision === 'retain') return true;
+  if (i.decision === 'hoist') return !i.fastPath;
+  return false;
+}
 
 export interface IRParam {
   name: string;
@@ -171,7 +198,7 @@ class FuncIRGen {
         if (stmt.target.index) {
           const info = this.resolveVar(stmt.target.name);
           const idx = this.genExpr(stmt.target.index, out);
-          this.emitBoundsCheck(stmt.target.name, idx, stmt.target.pos, out);
+          this.emitBoundsCheck(stmt.target.name, idx, stmt.target.pos, 'write', out);
           out.push({
             op: 'arrstore',
             base: reg(info.irName, info.type),
@@ -234,7 +261,7 @@ class FuncIRGen {
     }
   }
 
-  private emitBoundsCheck(arrayName: string, index: IRValue, pos: AST.Pos, out: IRInstr[]): void {
+  private emitBoundsCheck(arrayName: string, index: IRValue, pos: AST.Pos, access: 'read' | 'write', out: IRInstr[]): void {
     const lengthParamName = this.arrayLength.get(arrayName);
     const lengthInfo = lengthParamName ? this.resolveVar(lengthParamName) : null;
     const length: IRValue = lengthInfo ? reg(lengthInfo.irName, lengthInfo.type) : imm(0, 'int');
@@ -245,6 +272,7 @@ class FuncIRGen {
       index,
       length,
       arrayName,
+      access,
       pos: { line: pos.line, column: pos.column },
     });
   }
@@ -264,7 +292,7 @@ class FuncIRGen {
       case 'IndexExpr': {
         const info = this.resolveVar(expr.arrayName);
         const idx = this.genExpr(expr.index, out);
-        this.emitBoundsCheck(expr.arrayName, idx, expr.pos, out);
+        this.emitBoundsCheck(expr.arrayName, idx, expr.pos, 'read', out);
         const dest = this.freshTemp();
         const elemType = toIRType(expr.type!);
         out.push({
@@ -329,11 +357,21 @@ export function printInstr(instr: IRInstr, indent: string, lines: string[]): voi
     case 'move':
       lines.push(`${indent}${instr.dest} = ${valStr(instr.src)} : ${instr.type}`);
       return;
-    case 'boundscheck':
+    case 'boundscheck': {
+      let note = instr.eliminated ? ' ; ELIMINATED' : '';
+      if (instr.decision) note = ` ; ${instr.decision.toUpperCase()}${instr.fastPath ? ' (fast path: no check)' : ''}`;
       lines.push(
-        `${indent}BoundsCheck(${valStr(instr.index)}, ${valStr(instr.length)}) [${instr.arrayName}]${instr.eliminated ? ' ; ELIMINATED' : ''} @${instr.pos.line}:${instr.pos.column}`,
+        `${indent}BoundsCheck#${instr.id}(${valStr(instr.index)}, ${valStr(instr.length)}) [${instr.arrayName}, ${instr.access}]${note} @${instr.pos.line}:${instr.pos.column}`,
       );
       return;
+    }
+    case 'guard': {
+      const t = instr.terms.map(
+        (g) => `${valStr(g.lhs)}${g.lhsAdd ? ` + ${g.lhsAdd}` : ''} <= ${valStr(g.rhs)}${g.rhsAdd ? ` + ${g.rhsAdd}` : ''}`,
+      );
+      lines.push(`${indent}${instr.dest} = guard64(${t.join(' && ')})`);
+      return;
+    }
     case 'arrload':
       lines.push(`${indent}${instr.dest} = load ${valStr(instr.base)}[${valStr(instr.index)}] : ${instr.type}`);
       return;
@@ -384,55 +422,70 @@ export function printProgram(prog: IRProgram): string {
 
 // ---- bounds-check stats ----
 
-export interface BoundsStats {
-  perFunction: Array<{ name: string; inserted: number; retained: number }>;
-  totalInserted: number;
-  totalRetained: number;
+export interface FunctionBoundsStats {
+  name: string;
+  inserted: number; // distinct BoundsCheck sites (a versioned loop's two copies count once)
+  retained: number; // sites with a runtime check on every path (decision 'retain', or not eliminated)
+  eliminated: number;
+  hoisted: number;
+  omitted: number;
 }
 
-function countBoundsChecks(instrs: IRInstr[]): { inserted: number; retained: number } {
-  let inserted = 0;
-  let retained = 0;
+export interface BoundsStats {
+  perFunction: FunctionBoundsStats[];
+  totalInserted: number;
+  totalRetained: number;
+  totalHoisted: number;
+  totalOmitted: number;
+}
+
+function collectSites(instrs: IRInstr[], out: Map<number, Extract<IRInstr, { op: 'boundscheck' }>>): void {
   for (const instr of instrs) {
     if (instr.op === 'boundscheck') {
-      inserted++;
-      if (!instr.eliminated) retained++;
+      if (!out.has(instr.id)) out.set(instr.id, instr);
     } else if (instr.op === 'if') {
-      const t = countBoundsChecks(instr.thenBody);
-      inserted += t.inserted;
-      retained += t.retained;
-      if (instr.elseBody) {
-        const e = countBoundsChecks(instr.elseBody);
-        inserted += e.inserted;
-        retained += e.retained;
-      }
+      collectSites(instr.thenBody, out);
+      if (instr.elseBody) collectSites(instr.elseBody, out);
     } else if (instr.op === 'while') {
-      const b = countBoundsChecks(instr.body);
-      inserted += b.inserted;
-      retained += b.retained;
+      collectSites(instr.condInstrs, out);
+      collectSites(instr.body, out);
     }
   }
-  return { inserted, retained };
 }
 
 export function computeBoundsStats(prog: IRProgram): BoundsStats {
   const perFunction = prog.functions.map((fn) => {
-    const { inserted, retained } = countBoundsChecks(fn.body);
-    return { name: fn.name, inserted, retained };
+    const sites = new Map<number, Extract<IRInstr, { op: 'boundscheck' }>>();
+    collectSites(fn.body, sites);
+    const st: FunctionBoundsStats = { name: fn.name, inserted: 0, retained: 0, eliminated: 0, hoisted: 0, omitted: 0 };
+    for (const s of sites.values()) {
+      st.inserted++;
+      const d: Decision = s.decision ?? (s.eliminated ? 'eliminate' : 'retain');
+      if (d === 'retain') st.retained++;
+      else if (d === 'eliminate') st.eliminated++;
+      else if (d === 'hoist') st.hoisted++;
+      else st.omitted++;
+    }
+    return st;
   });
-  const totalInserted = perFunction.reduce((s, f) => s + f.inserted, 0);
-  const totalRetained = perFunction.reduce((s, f) => s + f.retained, 0);
-  return { perFunction, totalInserted, totalRetained };
+  const sum = (k: keyof Omit<FunctionBoundsStats, 'name'>) => perFunction.reduce((a, f) => a + f[k], 0);
+  return {
+    perFunction,
+    totalInserted: sum('inserted'),
+    totalRetained: sum('retained'),
+    totalHoisted: sum('hoisted'),
+    totalOmitted: sum('omitted'),
+  };
+}
+
+function statsLine(label: string, inserted: number, retained: number, hoisted: number, omitted: number): string {
+  const pct = inserted === 0 ? 100 : Math.round(((inserted - retained - hoisted - omitted) / inserted) * 100);
+  const extra = hoisted || omitted ? `, ${hoisted} hoisted, ${omitted} omitted` : '';
+  return `Bounds checks [${label}]: ${inserted} inserted, ${retained} retained${extra} (${pct}% eliminated)`;
 }
 
 export function formatBoundsStats(stats: BoundsStats): string {
-  const lines: string[] = [];
-  for (const f of stats.perFunction) {
-    const pct = f.inserted === 0 ? 100 : Math.round(((f.inserted - f.retained) / f.inserted) * 100);
-    lines.push(`Bounds checks [${f.name}]: ${f.inserted} inserted, ${f.retained} retained (${pct}% eliminated)`);
-  }
-  const totalPct =
-    stats.totalInserted === 0 ? 100 : Math.round(((stats.totalInserted - stats.totalRetained) / stats.totalInserted) * 100);
-  lines.push(`Bounds checks [total]: ${stats.totalInserted} inserted, ${stats.totalRetained} retained (${totalPct}% eliminated)`);
+  const lines = stats.perFunction.map((f) => statsLine(f.name, f.inserted, f.retained, f.hoisted, f.omitted));
+  lines.push(statsLine('total', stats.totalInserted, stats.totalRetained, stats.totalHoisted, stats.totalOmitted));
   return lines.join('\n');
 }

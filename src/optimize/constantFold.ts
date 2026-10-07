@@ -66,6 +66,7 @@ function collectDefs(instrs: IRInstr[], constMap: Map<string, number>): void {
         constMap.delete(instr.dest);
         break;
       case 'call':
+      case 'guard':
         if (instr.dest) constMap.delete(instr.dest);
         break;
       case 'if':
@@ -171,6 +172,12 @@ function foldList(instrs: IRInstr[]): IRInstr[] {
       }
       case 'print': {
         out.push({ ...instr, value: foldValue(instr.value, constMap) });
+        break;
+      }
+      case 'guard': {
+        const terms = instr.terms.map((t) => ({ ...t, lhs: foldValue(t.lhs, constMap), rhs: foldValue(t.rhs, constMap) }));
+        constMap.delete(instr.dest);
+        out.push({ ...instr, terms });
         break;
       }
       case 'if': {

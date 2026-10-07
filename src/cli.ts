@@ -9,6 +9,8 @@ import { assembleAndInstantiate, callFunction, readTrapSideChannel, formatTrapMe
 import { Lexer } from './lexer';
 import { ErrorReporter } from './errors';
 import { TokenType } from './tokens';
+import { formatHardeningReport } from './harden/harden';
+import { parsePolicy, parseWeights } from './harden/config';
 
 interface CliOptions {
   file: string;
@@ -21,6 +23,9 @@ interface CliOptions {
   regBudget: number;
   stats: boolean;
   noBoundsElim: boolean;
+  harden: string | null;
+  riskWeights: string | null;
+  hardenReport: string | null;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -35,6 +40,9 @@ function parseArgs(argv: string[]): CliOptions {
     regBudget: 4,
     stats: false,
     noBoundsElim: false,
+    harden: null,
+    riskWeights: null,
+    hardenReport: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -67,7 +75,10 @@ function parseArgs(argv: string[]): CliOptions {
         opts.noBoundsElim = true;
         break;
       default:
-        if (!arg.startsWith('--')) opts.file = arg;
+        if (arg.startsWith('--harden=')) opts.harden = arg.slice('--harden='.length);
+        else if (arg.startsWith('--risk-weights=')) opts.riskWeights = arg.slice('--risk-weights='.length);
+        else if (arg.startsWith('--harden-report=')) opts.hardenReport = arg.slice('--harden-report='.length);
+        else if (!arg.startsWith('--')) opts.file = arg;
         break;
     }
   }
@@ -123,9 +134,24 @@ export async function compileAndRun(argvInput: string[]): Promise<number> {
     }
   }
 
+  let policy;
+  let weights;
+  try {
+    policy = opts.harden ? parsePolicy(opts.harden) : undefined;
+    weights = opts.riskWeights ? parseWeights(opts.riskWeights) : undefined;
+  } catch (e) {
+    console.error(`error: ${(e as Error).message}`);
+    return 1;
+  }
+
   let compiled;
   try {
-    compiled = compileProgram(source, { regBudget: opts.regBudget, skipRangeAnalysis: opts.noBoundsElim });
+    compiled = compileProgram(source, {
+      regBudget: opts.regBudget,
+      skipRangeAnalysis: opts.noBoundsElim,
+      harden: policy,
+      weights,
+    });
   } catch (e) {
     if (e instanceof CompileError) {
       for (const err of e.errors) console.error(err.message);
@@ -148,6 +174,10 @@ export async function compileAndRun(argvInput: string[]): Promise<number> {
   const stats = computeBoundsStats(compiled.finalIR);
   if (opts.emitIr || opts.stats) {
     console.log('\n' + formatBoundsStats(stats));
+    console.log('\n' + formatHardeningReport(compiled.hardening));
+  }
+  if (opts.hardenReport) {
+    fs.writeFileSync(opts.hardenReport, JSON.stringify(compiled.hardening, null, 2) + '\n', 'utf-8');
   }
 
   const codegenResult = compiled.codegen;

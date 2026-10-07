@@ -122,6 +122,7 @@ function collectDefRegs(instrs: IRInstr[], out: Set<string>): void {
         out.add(instr.dest);
         break;
       case 'call':
+      case 'guard':
         if (instr.dest) out.add(instr.dest);
         break;
       case 'if':
@@ -363,7 +364,7 @@ function analyzeList(instrs: IRInstr[], stateIn: AState): { instrs: IRInstr[]; s
         const len = rangeOf(instr.length, state.ranges);
         const loOk = idx.lo >= 0;
         const hiOk = idx.hi < len.lo || symbolicBelow(instr.index, instr.length, state);
-        out.push({ ...instr, eliminated: loOk && hiOk });
+        out.push({ ...instr, eliminated: loOk && hiOk, provenLo: loOk, provenHi: hiOk });
         break;
       }
       case 'arrload':
@@ -375,6 +376,10 @@ function analyzeList(instrs: IRInstr[], stateIn: AState): { instrs: IRInstr[]; s
         break;
       case 'call':
         if (instr.dest) defReg(state, instr.dest, TOP);
+        out.push(instr);
+        break;
+      case 'guard':
+        defReg(state, instr.dest, BOOL_RANGE);
         out.push(instr);
         break;
       case 'return':

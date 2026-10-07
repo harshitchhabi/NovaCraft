@@ -1,0 +1,95 @@
+// Loop-versioning fixtures (milestone A2). None of these checks can be
+// proven (n is unrelated to len), so `strict` hoists the qualifying ones.
+
+// i <= n with index i - 1. With start near INT_MAX and n == INT_MAX, the
+// update i = i + 1 wraps to INT_MIN and the loop continues: the guard must
+// see that n + 1 does not fit in i32 and take the slow loop.
+func window(arr: int[], len: int, start: int, n: int) -> int {
+    let s: int = 0;
+    let i: int = start;
+    while (i <= n) {
+        s = s + arr[i - 1];
+        i = i + 1;
+    }
+    return s;
+}
+
+// Read at i + 1 and write at i, both before the update.
+func shift(arr: int[], len: int, n: int) -> int {
+    let s: int = 0;
+    let i: int = 0;
+    while (i < n) {
+        s = s + arr[i + 1];
+        arr[i] = s;
+        i = i + 1;
+    }
+    return s;
+}
+
+// Stride 2, access after the update: effective offset +2.
+func strideAfter(arr: int[], len: int, n: int) -> int {
+    let s: int = 0;
+    let i: int = 0;
+    while (i < n) {
+        i = i + 2;
+        s = s + arr[i - 1];
+    }
+    return s;
+}
+
+// Not versionable: the update is conditional.
+func condUpdate(arr: int[], len: int, n: int, k: int) -> int {
+    let s: int = 0;
+    let i: int = 0;
+    while (i < n) {
+        s = s + arr[i];
+        if (k > 0) {
+            i = i + 1;
+        } else {
+            i = i + 2;
+        }
+    }
+    return s;
+}
+
+// Not versionable: the bound is assigned in the loop.
+func movingBound(arr: int[], len: int, n: int) -> int {
+    let s: int = 0;
+    let i: int = 0;
+    while (i < n) {
+        s = s + arr[i];
+        n = n - 1;
+        i = i + 1;
+    }
+    return s;
+}
+
+// Not versionable: the index is not i + c.
+func scaled(arr: int[], len: int, n: int) -> int {
+    let s: int = 0;
+    let i: int = 0;
+    while (i < n) {
+        s = s + arr[i * 2];
+        i = i + 1;
+    }
+    return s;
+}
+
+// Hoisting out of the outer loop from inside an inner loop.
+func nested(arr: int[], len: int, n: int, m: int) -> int {
+    let s: int = 0;
+    let i: int = 0;
+    while (i < n) {
+        let j: int = 0;
+        while (j < m) {
+            s = s + arr[i] + arr[j];
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

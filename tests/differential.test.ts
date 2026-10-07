@@ -32,7 +32,7 @@ describe('differential fuzz: range analysis vs. --no-bounds-elim', () => {
   test('the fuzzer detects a deliberately unsound elimination', async () => {
     const dropAll = (instrs: IRInstr[]): IRInstr[] =>
       instrs.map((i) => {
-        if (i.op === 'boundscheck') return { ...i, eliminated: true };
+        if (i.op === 'boundscheck') return { ...i, eliminated: true, decision: 'omit' as const };
         if (i.op === 'if') return { ...i, thenBody: dropAll(i.thenBody), elseBody: i.elseBody ? dropAll(i.elseBody) : null };
         if (i.op === 'while') return { ...i, body: dropAll(i.body) };
         return i;

@@ -6,7 +6,7 @@
 // int/bool, an `_f` f32 bank for float), or a load/store against this
 // call's spill region in linear memory. This makes the allocator's decisions
 // actually observable in the emitted code, not just a printed table.
-import { IRFunction, IRInstr, IRProgram, IRPrimType, IRValue } from './ir';
+import { IRFunction, IRInstr, IRProgram, IRPrimType, IRValue, checkEmitted } from './ir';
 import { allocateRegisters, AllocationResult } from './regalloc';
 import {
   computeFrame,
@@ -44,6 +44,9 @@ function collectRegTypes(fn: IRFunction): Map<string, IRPrimType> {
         case 'call':
           if (instr.dest && instr.type) types.set(instr.dest, instr.type);
           break;
+        case 'guard':
+          types.set(instr.dest, 'bool');
+          break;
         case 'if':
           visit(instr.thenBody);
           if (instr.elseBody) visit(instr.elseBody);
@@ -75,6 +78,7 @@ class FuncCodegen {
     private readonly alloc: AllocationResult,
     private readonly regTypes: Map<string, IRPrimType>,
     private readonly regBudget: number,
+    private readonly countChecks = false,
   ) {}
 
   private emit(line: string): void {
@@ -254,7 +258,35 @@ class FuncCodegen {
       case 'while':
         this.emitWhile(instr, depth, pad);
         return;
+      case 'guard':
+        this.emitGuard(instr, pad);
+        return;
     }
+  }
+
+  // Loop-versioning guard: every term lhs + a <= rhs + b is evaluated on
+  // sign-extended i64 values, so no term can wrap.
+  private emitGuard(instr: Extract<IRInstr, { op: 'guard' }>, pad: string): void {
+    this.emit(`${pad}i32.const 1`);
+    const side = (v: IRValue, add: number) => {
+      if (v.kind === 'imm') {
+        this.emit(`${pad}i64.const ${v.value + add}`);
+        return;
+      }
+      this.loadValuePadded(v, pad);
+      this.emit(`${pad}i64.extend_i32_s`);
+      if (add !== 0) {
+        this.emit(`${pad}i64.const ${add}`);
+        this.emit(`${pad}i64.add`);
+      }
+    };
+    for (const t of instr.terms) {
+      side(t.lhs, t.lhsAdd);
+      side(t.rhs, t.rhsAdd);
+      this.emit(`${pad}i64.le_s`);
+      this.emit(`${pad}i32.and`);
+    }
+    this.storeRegPadded(instr.dest, pad);
   }
 
   // ---- padded helpers (loadValue/storeReg emit unindented via this.emit; wrap with padding) ----
@@ -353,19 +385,35 @@ class FuncCodegen {
   }
 
   private emitBoundsCheck(instr: Extract<IRInstr, { op: 'boundscheck' }>, pad: string): void {
-    if (instr.eliminated) {
-      this.emit(`${pad};; BoundsCheck eliminated (range analysis proved it safe): ${instr.arrayName}[${instr.index.kind === 'reg' ? instr.index.name : instr.index.value}]`);
+    if (!checkEmitted(instr)) {
+      const why = instr.fastPath
+        ? 'hoisted (fast path of a versioned loop)'
+        : instr.decision === 'omit'
+          ? 'omitted by hardening policy'
+          : 'eliminated (range analysis proved it safe)';
+      this.emit(`${pad};; BoundsCheck #${instr.id} ${why}: ${instr.arrayName}[${instr.index.kind === 'reg' ? instr.index.name : instr.index.value}]`);
       return;
     }
 
-    this.sourceMapEntries.push({
-      instrOffsetOrIndex: instr.id,
-      line: instr.pos.line,
-      column: instr.pos.column,
-      kind: 'BoundsCheck',
-      functionName: this.fn.name,
-      arrayName: instr.arrayName,
-    });
+    if (this.countChecks) {
+      this.emit(`${pad}global.get $check_count`);
+      this.emit(`${pad}i32.const 1`);
+      this.emit(`${pad}i32.add`);
+      this.emit(`${pad}global.set $check_count`);
+    }
+
+    // A versioned loop emits the same site in its slow copy and (when not
+    // hoisted) its fast copy; one source-map entry per id is enough.
+    if (!this.sourceMapEntries.some((e) => e.instrOffsetOrIndex === instr.id)) {
+      this.sourceMapEntries.push({
+        instrOffsetOrIndex: instr.id,
+        line: instr.pos.line,
+        column: instr.pos.column,
+        kind: 'BoundsCheck',
+        functionName: this.fn.name,
+        arrayName: instr.arrayName,
+      });
+    }
 
     this.loadValuePadded(instr.index, pad);
     this.emit(`${pad}i32.const 0`);
@@ -436,12 +484,22 @@ class FuncCodegen {
   }
 }
 
-export function generateModule(program: IRProgram, regBudget: number): CodegenResult {
+export interface CodegenOptions {
+  // Counter-instrumented build: every executed BoundsCheck increments a
+  // global exported as `checkCount` (deterministic dynamic check counts).
+  countChecks?: boolean;
+}
+
+export function generateModule(program: IRProgram, regBudget: number, opts: CodegenOptions = {}): CodegenResult {
   const lines: string[] = [];
   lines.push('(module');
   lines.push('  (import "env" "print" (func $print (param i32)))');
   lines.push('  (memory (export "memory") 1)');
   lines.push(`  (global $sp (mut i32) (i32.const ${SP_INITIAL}))`);
+  if (opts.countChecks) {
+    lines.push('  (global $check_count (mut i32) (i32.const 0))');
+    lines.push('  (export "checkCount" (global $check_count))');
+  }
 
   const sourceMapEntries: SourceMapEntry[] = [];
   const allocations = new Map<string, AllocationResult>();
@@ -450,7 +508,7 @@ export function generateModule(program: IRProgram, regBudget: number): CodegenRe
     const alloc = allocateRegisters(fn, regBudget);
     allocations.set(fn.name, alloc);
     const regTypes = collectRegTypes(fn);
-    const gen = new FuncCodegen(fn, alloc, regTypes, regBudget);
+    const gen = new FuncCodegen(fn, alloc, regTypes, regBudget, !!opts.countChecks);
     const result = gen.generate();
     for (const l of result.wat) lines.push('  ' + l);
     sourceMapEntries.push(...result.sourceMap);

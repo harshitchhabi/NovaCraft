@@ -324,3 +324,46 @@ exhaustion (the stack-limit trap or a host RangeError) compares equal
 regardless of where it happened. Fuzzed length arguments are kept <= the
 real array length, since a larger one lets a program legitimately read and
 write into its own spill slots, whose layout is what the test varies.
+
+## Milestones A1 + A2: risk-adaptive hardening and loop versioning
+
+Code in `src/harden/` (config, taint, harden, version). Decisions the spec
+left open, one line each:
+
+- Hardening runs after range analysis and before CSE, so CSE cannot
+  rewrite the `i = i + s` / `i + c` shapes loop versioning matches; CSE and
+  DCE then run on the versioned loops like any other code.
+- Range analysis always runs (it only annotates); `full` and `none` ignore
+  its result for decisions but still report C. `--no-bounds-elim` maps to
+  `--harden=full` and emits exactly the code it did before.
+- Each BoundsCheck now records `access` (read/write) at IR generation and
+  `provenLo`/`provenHi` from range analysis, which gives C directly.
+- Provenance is flow-insensitive per register and context-insensitive
+  across calls (a callee that may return an external value taints every
+  call result); an array load is external if its base or index is.
+  Recursion does not make a function an entry point (`fib` calls itself but
+  is called by `main`).
+- R is rounded to 1e-9 before comparing with tau, so 0.4 + 0.35 is exactly
+  0.75.
+- `budget:F` ranks all unproven sites of the whole program by R/cost
+  (ties by site id), keeps the longest prefix whose cost fits in
+  F * (sum of all sites' cost), and omits the first site that does not fit
+  and everything after it. Kept sites are hoisted when versionable; cost
+  accounting does not credit hoisting.
+- `none` reports every site as Omit (no analysis decision applies); `chuang`
+  does no hoisting.
+- Loop versioning (`version.ts`): the guard is a new IR instruction
+  (`guard`) evaluated in i64 by codegen, so no guard term can wrap. Per the
+  user's extra rule, every versioned loop's guard also requires
+  `Nmax + s <= INT_MAX`, i.e. the update `i = i + s` cannot wrap.
+- A site is hoisted out of its innermost qualifying loop; a site inside a
+  nested loop can be hoisted out of the outer loop when its index is the
+  outer induction variable. Sites in the loop's condition are never hoisted.
+- The fast and slow copies keep the same check ids, so a trap in the slow
+  copy reports the same id as `full`. The source map has one entry per id.
+- A counter-instrumented build (`countChecks`, exported global
+  `checkCount`) was added now, for the A2 tests to observe which copy ran;
+  A3 will use it for dynamic check counts.
+- Commit granularity: A1 and A2 share the IR and pass changes (the
+  decision code produces Hoist, which needs versioning to be meaningful), so
+  they were developed and committed together.

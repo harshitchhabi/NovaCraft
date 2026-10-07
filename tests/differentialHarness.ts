@@ -312,7 +312,11 @@ export async function differential(file: string, opts: DiffOptions): Promise<Dif
 
 export function listPrograms(): string[] {
   const root = path.join(__dirname, '..');
-  const dirs = [path.join(root, 'examples'), path.join(__dirname, 'fixtures', 'soundness')];
+  const dirs = [
+    path.join(root, 'examples'),
+    path.join(__dirname, 'fixtures', 'soundness'),
+    path.join(__dirname, 'fixtures', 'harden'),
+  ];
   const out: string[] = [];
   for (const d of dirs) {
     for (const f of fs.readdirSync(d).sort()) if (f.endsWith('.min')) out.push(path.join(d, f));

@@ -47,6 +47,12 @@ function collectUsed(instrs: IRInstr[], used: Set<string>): void {
       case 'print':
         addUse(instr.value, used);
         break;
+      case 'guard':
+        for (const t of instr.terms) {
+          addUse(t.lhs, used);
+          addUse(t.rhs, used);
+        }
+        break;
       case 'if':
         addUse(instr.cond, used);
         collectUsed(instr.thenBody, used);
@@ -102,7 +108,7 @@ function filterDeadAssigns(instrs: IRInstr[], used: Set<string>): { instrs: IRIn
   let changed = false;
   for (const instr of instrs) {
     if (
-      (instr.op === 'const' || instr.op === 'move' || instr.op === 'binop' || instr.op === 'unop') &&
+      (instr.op === 'const' || instr.op === 'move' || instr.op === 'binop' || instr.op === 'unop' || instr.op === 'guard') &&
       !used.has(instr.dest) &&
       !mayTrap(instr)
     ) {
