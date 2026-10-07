@@ -426,3 +426,8 @@ left open, one line each:
   halves in `eval/benchmarks.ts` before any results; the ablation (each
   weight zeroed at tau = 0.5) is reported per split, and the default weights
   are unchanged.
+- Outcome of the x10 input scale: it did not reduce timing noise much. In
+  the committed run (`results/raw/timing.csv`) the median kernel's
+  pass-to-pass difference is still 38.7% (max 56.1%), so almost all runtime
+  comparisons are reported as within noise. Checks executed remains the
+  cost metric the conclusions rest on.

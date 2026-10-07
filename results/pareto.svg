@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="440" viewBox="0 0 680 440" font-family="sans-serif" font-size="11">
+<rect width="680" height="440" fill="white"/>
+<text x="64" y="22" font-size="14" font-weight="bold">Checks executed vs. external-write coverage</text>
+<line x1="64" x2="530" y1="384" y2="384" stroke="#e5e5e5"/>
+<text x="58" y="388" text-anchor="end">0.0</text>
+<line y1="40" y2="384" x1="64" x2="64" stroke="#e5e5e5"/>
+<text x="64" y="400" text-anchor="middle">0%</text>
+<line x1="64" x2="530" y1="315.2" y2="315.2" stroke="#e5e5e5"/>
+<text x="58" y="319.2" text-anchor="end">0.2</text>
+<line y1="40" y2="384" x1="157.2" x2="157.2" stroke="#e5e5e5"/>
+<text x="157.2" y="400" text-anchor="middle">20%</text>
+<line x1="64" x2="530" y1="246.4" y2="246.4" stroke="#e5e5e5"/>
+<text x="58" y="250.4" text-anchor="end">0.4</text>
+<line y1="40" y2="384" x1="250.4" x2="250.4" stroke="#e5e5e5"/>
+<text x="250.4" y="400" text-anchor="middle">40%</text>
+<line x1="64" x2="530" y1="177.6" y2="177.6" stroke="#e5e5e5"/>
+<text x="58" y="181.6" text-anchor="end">0.6</text>
+<line y1="40" y2="384" x1="343.59999999999997" x2="343.59999999999997" stroke="#e5e5e5"/>
+<text x="343.59999999999997" y="400" text-anchor="middle">60%</text>
+<line x1="64" x2="530" y1="108.79999999999998" y2="108.79999999999998" stroke="#e5e5e5"/>
+<text x="58" y="112.79999999999998" text-anchor="end">0.8</text>
+<line y1="40" y2="384" x1="436.8" x2="436.8" stroke="#e5e5e5"/>
+<text x="436.8" y="400" text-anchor="middle">80%</text>
+<line x1="64" x2="530" y1="40" y2="40" stroke="#e5e5e5"/>
+<text x="58" y="44" text-anchor="end">1.0</text>
+<line y1="40" y2="384" x1="530" x2="530" stroke="#e5e5e5"/>
+<text x="530" y="400" text-anchor="middle">100%</text>
+<rect x="64" y="40" width="466" height="344" fill="none" stroke="#333"/>
+<text x="297" y="426" text-anchor="middle">checks executed (% of full)</text>
+<text transform="translate(16 212) rotate(-90)" text-anchor="middle">coverage_ext_write</text>
+<circle cx="64" cy="384" r="2.5" fill="#999" fill-opacity="0.45"><title>smooth none</title></circle>
+<circle cx="530" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smooth full</title></circle>
+<circle cx="530" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smooth proof</title></circle>
+<circle cx="530" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smooth strict</title></circle>
+<circle cx="530" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smooth balanced</title></circle>
+<circle cx="110.59999067985274" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smooth performance</title></circle>
+<circle cx="110.60008388132533" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smooth budget:0.25</title></circle>
+<circle cx="110.60008388132533" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smooth budget:0.5</title></circle>
+<circle cx="110.59999067985274" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smooth chuang</title></circle>
+<circle cx="64" cy="384" r="2.5" fill="#999" fill-opacity="0.45"><title>smoothV none</title></circle>
+<circle cx="530" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smoothV full</title></circle>
+<circle cx="530" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smoothV proof</title></circle>
+<circle cx="64.00009320147258" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smoothV strict</title></circle>
+<circle cx="64.00009320147258" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smoothV balanced</title></circle>
+<circle cx="64" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smoothV performance</title></circle>
+<circle cx="64.00009320147258" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smoothV budget:0.25</title></circle>
+<circle cx="64.00009320147258" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smoothV budget:0.5</title></circle>
+<circle cx="110.59999067985274" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>smoothV chuang</title></circle>
+<circle cx="64" cy="384" r="2.5" fill="#999" fill-opacity="0.45"><title>histogram none</title></circle>
+<circle cx="530" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>histogram full</title></circle>
+<circle cx="374.66669255555126" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>histogram proof</title></circle>
+<circle cx="374.66669255555126" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>histogram strict</title></circle>
+<circle cx="374.6666148888975" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>histogram balanced</title></circle>
+<circle cx="219.33330744444876" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>histogram performance</title></circle>
+<circle cx="64.00007766665372" cy="384" r="2.5" fill="#999" fill-opacity="0.45"><title>histogram budget:0.25</title></circle>
+<circle cx="219.33338511110247" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>histogram budget:0.5</title></circle>
+<circle cx="219.33330744444876" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>histogram chuang</title></circle>
+<circle cx="64" cy="384" r="2.5" fill="#999" fill-opacity="0.45"><title>scatter none</title></circle>
+<circle cx="530" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>scatter full</title></circle>
+<circle cx="374.66669255555126" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>scatter proof</title></circle>
+<circle cx="219.33338511110247" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>scatter strict</title></circle>
+<circle cx="219.33330744444876" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>scatter balanced</title></circle>
+<circle cx="219.33330744444876" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>scatter performance</title></circle>
+<circle cx="64.00007766665372" cy="384" r="2.5" fill="#999" fill-opacity="0.45"><title>scatter budget:0.25</title></circle>
+<circle cx="219.33338511110247" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>scatter budget:0.5</title></circle>
+<circle cx="219.33330744444876" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>scatter chuang</title></circle>
+<circle cx="64" cy="384" r="2.5" fill="#999" fill-opacity="0.45"><title>reverse none</title></circle>
+<circle cx="530" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>reverse full</title></circle>
+<circle cx="530" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>reverse proof</title></circle>
+<circle cx="297.0000582499854" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>reverse strict</title></circle>
+<circle cx="296.99994175001456" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>reverse balanced</title></circle>
+<circle cx="180.49997087500728" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>reverse performance</title></circle>
+<circle cx="64.00011649997087" cy="384" r="2.5" fill="#999" fill-opacity="0.45"><title>reverse budget:0.25</title></circle>
+<circle cx="180.50008737497814" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>reverse budget:0.5</title></circle>
+<circle cx="296.99994175001456" cy="40" r="2.5" fill="#999" fill-opacity="0.45"><title>reverse chuang</title></circle>
+<path d="M270.0,40.0 L270.0,40.0 L270.0,40.0 L270.0,40.0 L205.0,40.0 L205.0,40.0 L205.0,40.0 L205.0,40.0 L205.0,40.0 L173.7,40.0 L173.7,40.0 L173.7,40.0 L173.7,40.0 L173.7,40.0 L173.7,40.0 L173.7,40.0 L95.9,40.0 L95.9,40.0 L95.9,40.0 L95.9,40.0 L95.9,40.0" fill="none" stroke="#2a6fdb" stroke-width="1.5"/>
+<circle cx="269.95617989153243" cy="40" r="2" fill="#2a6fdb"><title>tau=0</title></circle>
+<circle cx="269.95617989153243" cy="40" r="2" fill="#2a6fdb"><title>tau=0.05</title></circle>
+<circle cx="269.95617989153243" cy="40" r="2" fill="#2a6fdb"><title>tau=0.1</title></circle>
+<circle cx="269.95617989153243" cy="40" r="2" fill="#2a6fdb"><title>tau=0.15</title></circle>
+<circle cx="204.9628691480402" cy="40" r="2" fill="#2a6fdb"><title>tau=0.2</title></circle>
+<circle cx="204.9628691480402" cy="40" r="2" fill="#2a6fdb"><title>tau=0.25</title></circle>
+<circle cx="204.9628691480402" cy="40" r="2" fill="#2a6fdb"><title>tau=0.3</title></circle>
+<circle cx="204.9628691480402" cy="40" r="2" fill="#2a6fdb"><title>tau=0.35</title></circle>
+<circle cx="204.9628691480402" cy="40" r="2" fill="#2a6fdb"><title>tau=0.4</title></circle>
+<circle cx="173.6989629935488" cy="40" r="2" fill="#2a6fdb"><title>tau=0.45</title></circle>
+<circle cx="173.6989629935488" cy="40" r="2" fill="#2a6fdb"><title>tau=0.5</title></circle>
+<circle cx="173.6989629935488" cy="40" r="2" fill="#2a6fdb"><title>tau=0.55</title></circle>
+<circle cx="173.6989629935488" cy="40" r="2" fill="#2a6fdb"><title>tau=0.6</title></circle>
+<circle cx="173.6989629935488" cy="40" r="2" fill="#2a6fdb"><title>tau=0.65</title></circle>
+<circle cx="173.6989629935488" cy="40" r="2" fill="#2a6fdb"><title>tau=0.7</title></circle>
+<circle cx="173.6989629935488" cy="40" r="2" fill="#2a6fdb"><title>tau=0.75</title></circle>
+<circle cx="95.92217723066626" cy="40" r="2" fill="#2a6fdb"><title>tau=0.8</title></circle>
+<circle cx="95.92217723066626" cy="40" r="2" fill="#2a6fdb"><title>tau=0.85</title></circle>
+<circle cx="95.92217723066626" cy="40" r="2" fill="#2a6fdb"><title>tau=0.9</title></circle>
+<circle cx="95.92217723066626" cy="40" r="2" fill="#2a6fdb"><title>tau=0.95</title></circle>
+<circle cx="95.92217723066626" cy="40" r="2" fill="#2a6fdb"><title>tau=1</title></circle>
+<rect x="60" y="380" width="8" height="8" fill="#d1495b"><title>none</title></rect>
+<rect x="542" y="43" width="8" height="8" fill="#d1495b"/>
+<text x="554" y="50">none (0%, 0.00)</text>
+<rect x="526" y="36" width="8" height="8" fill="#333"><title>full</title></rect>
+<rect x="542" y="58" width="8" height="8" fill="#333"/>
+<text x="554" y="65">full (100%, 1.00)</text>
+<rect x="431.95988020410243" y="36" width="8" height="8" fill="#333"><title>proof</title></rect>
+<rect x="542" y="73" width="8" height="8" fill="#333"/>
+<text x="554" y="80">proof (80%, 1.00)</text>
+<rect x="265.95617989153243" y="36" width="8" height="8" fill="#333"><title>strict</title></rect>
+<rect x="542" y="88" width="8" height="8" fill="#333"/>
+<text x="554" y="95">strict (44%, 1.00)</text>
+<rect x="169.6989629935488" y="36" width="8" height="8" fill="#333"><title>balanced</title></rect>
+<rect x="542" y="103" width="8" height="8" fill="#333"/>
+<text x="554" y="110">balanced (24%, 1.00)</text>
+<rect x="91.92217723066626" y="36" width="8" height="8" fill="#d1495b"><title>performance</title></rect>
+<rect x="542" y="118" width="8" height="8" fill="#d1495b"/>
+<text x="554" y="125">performance (7%, 1.00)</text>
+<rect x="62.916721968006215" y="242.4" width="8" height="8" fill="#d1495b"><title>budget:0.25</title></rect>
+<rect x="542" y="133" width="8" height="8" fill="#d1495b"/>
+<text x="554" y="140">budget:0.25 (1%, 0.40)</text>
+<rect x="120.33418674734997" y="36" width="8" height="8" fill="#333"><title>budget:0.5</title></rect>
+<rect x="542" y="148" width="8" height="8" fill="#333"/>
+<text x="554" y="155">budget:0.5 (13%, 1.00)</text>
+<rect x="166.723672451182" y="36" width="8" height="8" fill="#333"><title>chuang</title></rect>
+<rect x="542" y="163" width="8" height="8" fill="#333"/>
+<text x="554" y="170">chuang (23%, 1.00)</text>
+<line x1="542" x2="550" y1="189" y2="189" stroke="#2a6fdb" stroke-width="1.5"/>
+<text x="554" y="193">threshold:tau sweep</text>
+<circle cx="546" cy="205" r="2.5" fill="#999"/>
+<text x="554" y="209">per benchmark</text>
+<text x="542" y="227" fill="#d1495b">red: Pareto-optimal</text>
+<text x="542" y="241" fill="#d1495b">among the configs</text>
+</svg>
