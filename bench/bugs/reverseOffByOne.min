@@ -1,0 +1,15 @@
+// BUG: swaps with arr[len - i] instead of arr[len - 1 - i], writing
+// arr[len] on the first iteration (external index: depends on len; write).
+func reverseBad(arr: int[], len: int) -> int {
+    let half: int = len / 2;
+    for (let i: int = 0; i < half; i = i + 1) {
+        let j: int = len - i;
+        let t: int = arr[i];
+        arr[j] = t;
+    }
+    return 0;
+}
+
+func main() -> int {
+    return 0;
+}

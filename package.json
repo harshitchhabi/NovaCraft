@@ -11,7 +11,8 @@
     "test": "jest",
     "novac": "ts-node src/cli.ts",
     "benchmark": "ts-node benchmark/boundsCheckBenchmark.ts",
-    "anomaly": "ts-node tools/anomaly-cli.ts"
+    "anomaly": "ts-node tools/anomaly-cli.ts",
+    "eval": "ts-node eval/run.ts && ts-node eval/report.ts"
   },
   "license": "MIT",
   "devDependencies": {

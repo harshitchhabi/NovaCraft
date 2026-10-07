@@ -1,0 +1,13 @@
+// In-place inclusive prefix sum. Every access is provable.
+func prefixSum(arr: int[], len: int) -> int {
+    let i: int = 1;
+    while (i < len) {
+        arr[i] = arr[i - 1] + arr[i];
+        i = i + 1;
+    }
+    return i;
+}
+
+func main() -> int {
+    return 0;
+}

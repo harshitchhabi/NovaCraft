@@ -1,0 +1,13 @@
+// BUG: histogram with no range check on the bucket taken from the data
+// (external index, write; the read of hist[b] fires first).
+func histBad(data: int[], dlen: int, hist: int[], hlen: int) -> int {
+    for (let i: int = 0; i < dlen; i = i + 1) {
+        let b: int = data[i];
+        hist[b] = 7;
+    }
+    return 0;
+}
+
+func main() -> int {
+    return 0;
+}

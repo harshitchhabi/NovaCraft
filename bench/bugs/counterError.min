@@ -1,0 +1,17 @@
+// BUG: packs pairs into out, but the output counter advances by 2 per
+// pair instead of 1, so out (half as long as src) overflows
+// (internal index, write).
+func packPairs(src: int[], slen: int, out: int[], olen: int) -> int {
+    let j: int = 0;
+    let i: int = 0;
+    while (i < slen - 1) {
+        out[j] = src[i] + src[i + 1];
+        j = j + 2;
+        i = i + 2;
+    }
+    return j;
+}
+
+func main() -> int {
+    return 0;
+}

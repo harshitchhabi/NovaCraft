@@ -267,6 +267,12 @@ class FuncCodegen {
   // Loop-versioning guard: every term lhs + a <= rhs + b is evaluated on
   // sign-extended i64 values, so no term can wrap.
   private emitGuard(instr: Extract<IRInstr, { op: 'guard' }>, pad: string): void {
+    if (this.countChecks) {
+      this.emit(`${pad}global.get $guard_count`);
+      this.emit(`${pad}i32.const 1`);
+      this.emit(`${pad}i32.add`);
+      this.emit(`${pad}global.set $guard_count`);
+    }
     this.emit(`${pad}i32.const 1`);
     const side = (v: IRValue, add: number) => {
       if (v.kind === 'imm') {
@@ -486,7 +492,8 @@ class FuncCodegen {
 
 export interface CodegenOptions {
   // Counter-instrumented build: every executed BoundsCheck increments a
-  // global exported as `checkCount` (deterministic dynamic check counts).
+  // global exported as `checkCount`, every executed loop-versioning guard
+  // one exported as `guardCount` (deterministic dynamic counts).
   countChecks?: boolean;
 }
 
@@ -499,6 +506,8 @@ export function generateModule(program: IRProgram, regBudget: number, opts: Code
   if (opts.countChecks) {
     lines.push('  (global $check_count (mut i32) (i32.const 0))');
     lines.push('  (export "checkCount" (global $check_count))');
+    lines.push('  (global $guard_count (mut i32) (i32.const 0))');
+    lines.push('  (export "guardCount" (global $guard_count))');
   }
 
   const sourceMapEntries: SourceMapEntry[] = [];

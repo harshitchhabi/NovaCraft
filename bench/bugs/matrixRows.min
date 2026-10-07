@@ -1,0 +1,14 @@
+// BUG: zeroes a rows x cols matrix but loops over rows + 1 rows
+// (external index: i * cols + j; write).
+func clearBad(m: int[], mlen: int, rows: int, cols: int) -> int {
+    for (let i: int = 0; i <= rows; i = i + 1) {
+        for (let j: int = 0; j < cols; j = j + 1) {
+            m[i * cols + j] = 0;
+        }
+    }
+    return 0;
+}
+
+func main() -> int {
+    return 0;
+}

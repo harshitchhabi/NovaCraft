@@ -367,3 +367,62 @@ left open, one line each:
 - Commit granularity: A1 and A2 share the IR and pass changes (the
   decision code produces Hoist, which needs versioning to be meaningful), so
   they were developed and committed together.
+
+## Milestone A3: evaluation corpus and harness
+
+- **Memory layout for evaluation arrays** (`eval/layout.ts`): the
+  0..4095 test-array region is too small, and the spill stack occupies
+  [8192, 65536) (confined by the prologue stack-limit check, it never writes
+  at or above 65536). Benchmark and bug-program arrays therefore start at
+  65536, laid out in parameter order as GAP, array 0, GAP, array 1, ..., GAP,
+  each GAP 16 bytes of the pattern 0xDEADBEEF. Memory is grown from the host
+  side to fit. The stack cannot reach the arrays: it only grows down from
+  65536. The trap side channel (4096..4107) is unchanged. A run's sentinels
+  are compared afterwards to detect silent corruption.
+- **Kernels** (`bench/*.min`, inputs in `eval/benchmarks.ts`): 16 NovaCraft
+  ports of PolyBench-style kernels, written in their natural form, plus the
+  requested versionable variants `stencilV` and `smoothV` (loop bound
+  computed once into a variable instead of in the loop condition). Kernel
+  list: sumArray, prefixSum, dot, axpy, matvec, stencil, stencilV, smooth,
+  smoothV, histogram, bubbleSort, insertionSort, binarySearch, gather,
+  scatter, reverse. scaleArray from examples/ was not reused (sumArray and
+  prefixSum already cover "analysis proves everything").
+- NovaCraft's `&&` is not short-circuiting (both operands are evaluated), so
+  insertion sort and binary search use explicit flags instead of
+  `j >= 0 && arr[j] > key`, which would read arr[-1].
+- Inputs are seeded, identical across configurations and in bounds; every
+  configuration's result and final arrays are compared with `full`.
+  Inputs are scaled x10 relative to the sizes in `eval/benchmarks.ts`
+  (a first run at x1 had calls of about 1 ms and a median pass-to-pass
+  timing difference of about 40%).
+- **Bug corpus** (`bench/bugs/`, `manifest.json`): 13 programs. Each was run
+  under `--harden=full` before use and traps at exactly the manifest's check
+  id with the triggering input; `tests/eval.test.ts` re-checks this, and that
+  the manifest's line:col, read/write and external/internal match the
+  compiler's own report. No program had to be dropped. One program was
+  changed before use: `neighborCopy` takes `dst` before `src` so that its
+  overflowing write runs through the gap into an actual neighboring array.
+  "external/internal" in the manifest uses the provenance definition of
+  `src/harden/taint.ts` (e.g. `arr[len - i]` is external because it depends
+  on `len`).
+- Security outcome classes: detected (trap at the manifest check),
+  silent_corruption (no trap, sentinel changed), missed_benign (no trap,
+  sentinels intact), plus other_trap / other_trap_after_corruption, which
+  the spec did not name but which the harness reports rather than folding
+  into another class.
+- **Metrics**: checks executed (counter build, `checkCount`) is the main cost
+  metric; loop-versioning guards are counted separately (`guardCount`), so
+  hoisting is not shown as free. Runtime: 5 warm-ups + 30 timed calls per
+  kernel/config, median and IQR; the whole timing pass runs twice, and a
+  kernel's noise is the largest relative difference between the two passes'
+  medians over its configurations. The report only calls a runtime
+  difference a result if it exceeds that noise.
+- Pareto x-axis is checks executed (as a fraction of `full`), not runtime,
+  because runtime noise is large; a second plot uses bug detection as y.
+- Configurations: none, full, proof, strict, balanced, performance,
+  budget:0.25, budget:0.5, chuang; the tau sweep 0..1 step 0.05 is
+  static + dynamic + security only (not timed).
+- **Weights were not tuned.** Kernels were split into tuning and held-out
+  halves in `eval/benchmarks.ts` before any results; the ablation (each
+  weight zeroed at tau = 0.5) is reported per split, and the default weights
+  are unchanged.
