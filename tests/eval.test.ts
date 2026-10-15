@@ -105,6 +105,24 @@ describe('bug corpus manifest', () => {
   }
 });
 
+describe('parseCsv', () => {
+  test('CRLF and LF line endings parse identically, with no key or value ending in \\r', () => {
+    const lf = 'a,b\n1,2\n3,4\n';
+    const crlf = 'a,b\r\n1,2\r\n3,4\r\n';
+    const lfRows = parseCsv(lf);
+    const crlfRows = parseCsv(crlf);
+    expect(crlfRows).toEqual(lfRows);
+    for (const rows of [lfRows, crlfRows]) {
+      for (const row of rows) {
+        for (const key of Object.keys(row)) {
+          expect(key.endsWith('\r')).toBe(false);
+          expect(row[key].endsWith('\r')).toBe(false);
+        }
+      }
+    }
+  });
+});
+
 describe('eval pipeline', () => {
   test('run.ts writes the raw CSVs and report.ts turns them into RESULTS.md and two SVGs', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nc-eval-'));

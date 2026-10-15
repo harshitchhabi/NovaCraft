@@ -28,6 +28,10 @@ export function parseCsv(text: string): Row[] {
     else if (c === ',') {
       row.push(field);
       field = '';
+    } else if (c === '\r') {
+      // Ignore a CRLF's '\r' outside a quoted field, so "a,b\r\n" parses
+      // the same as "a,b\n" instead of leaving a stray '\r' on the last
+      // field of the row (and, for the header row, on the last key).
     } else if (c === '\n') {
       row.push(field);
       lines.push(row);
