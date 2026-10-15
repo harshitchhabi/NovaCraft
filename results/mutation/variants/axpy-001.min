@@ -1,0 +1,11 @@
+// mutation axpy-001: lt-to-le at 3:28 (< to <=)
+func axpy(x: int[], xlen: int, y: int[], ylen: int, alpha: int, n: int) -> int {
+    for (let i: int = 0; (i <= n); i = (i + 1)) {
+        y[i] = ((alpha * x[i]) + y[i]);
+    }
+    return y[0];
+}
+
+func main() -> int {
+    return 0;
+}

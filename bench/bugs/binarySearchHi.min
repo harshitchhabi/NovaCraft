@@ -1,0 +1,29 @@
+// BUG: hi starts at len instead of len - 1, so a key larger than every
+// element makes the search read arr[len] (external index, read).
+func searchBad(arr: int[], len: int, key: int) -> int {
+    let lo: int = 0;
+    let hi: int = len;
+    let result: int = 0 - 1;
+    let searching: bool = true;
+    while (searching) {
+        if (lo > hi) {
+            searching = false;
+        } else {
+            let mid: int = (lo + hi) / 2;
+            let v: int = arr[mid];
+            if (v == key) {
+                result = mid;
+                searching = false;
+            } else if (v < key) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+    }
+    return result;
+}
+
+func main() -> int {
+    return 0;
+}

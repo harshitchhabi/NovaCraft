@@ -1,0 +1,13 @@
+// mutation prefixSum-010: swap-index-var at 5:13 (i to len in arr[...])
+func prefixSum(arr: int[], len: int) -> int {
+    let i: int = 1;
+    while ((i < len)) {
+        arr[len] = (arr[(i - 1)] + arr[i]);
+        i = (i + 1);
+    }
+    return i;
+}
+
+func main() -> int {
+    return 0;
+}

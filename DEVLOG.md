@@ -268,3 +268,254 @@ it closes the validator's gap for free. This was a latent bug that any
 sufficiently deep terminal `if`/`else` chain could have hit even without the
 `for`/`else if` work — `else if` just made it far more likely to occur in
 ordinary code.
+
+## Audit (milestone A0) decisions
+
+Full findings in `docs/AUDIT.md`. One line per decision the improvement
+spec left open:
+
+- Range analysis intervals are clamped to i32: any `+`/`-`/negation whose
+  exact interval leaves [INT_MIN, INT_MAX] becomes the full range ("could
+  wrap"), rather than modelling wraparound precisely.
+- The loop fixed point now runs until verified stable (cap 1000 rounds,
+  fallback: every register the loop defines becomes unknown) instead of a
+  fixed 4 rounds.
+- Facts from before a loop are visible inside the loop only if the loop
+  redefines neither register (they must hold on every back-edge, not just
+  the first iteration).
+- Branch refinement for `if`/`while` uses only the comparison that is the
+  instruction immediately before the branch, so no operand can have been
+  redefined in between.
+- `arr[i+1]` under `while (i < len - 1)` is proven only when `len - 1`
+  cannot wrap (e.g. under `if (len > 0)`); proving it for unconstrained
+  `len` is unsound for `len == INT_MIN`.
+- Constant folding matches the emitted instruction exactly (i32 wrap,
+  f32 rounding) and leaves trapping operations unfolded.
+- Dead-code elimination keeps an unused int `/` or `%` whose divisor could
+  trap.
+- Int literal 2147483648 is accepted and wraps to INT_MIN (so
+  `-2147483648` is writable); larger literals are a semantic error.
+- The differential fuzz harness runs each case in a worker thread with a
+  400 ms budget; full-check runs that time out are counted and skipped,
+  not compared.
+
+## Stack limit instead of a layout change
+
+The spill stack grows down from 65536 with no bound; deep recursion in a
+function with spill slots ran it through the trap side channel (4096) and
+the harness array region (0..4095) before hitting an out-of-bounds memory
+trap (measured: 8171 of the 8192 bytes below 8192 overwritten by
+`tests/fixtures/soundness/deepRecursion.min`). Chosen fix: a stack-limit
+check in the prologue of every function with a non-empty frame
+(`src/codegen.ts`): if `frameBase < STACK_LIMIT` (8192), write
+`STACK_OVERFLOW_CHECK_ID` (-1) to the check-id slot and trap; the harness
+reports it as `Runtime error: stack overflow`. Rejected alternative: moving
+the stack above the arrays, which would change the layout the CLI,
+benchmark and tests already rely on, and still leave the stack unbounded
+against whatever lies below it. Frameless functions are not checked; their
+recursion is bounded by the engine's own call-stack limit.
+
+## Register-budget differential test
+
+`tests/regBudget.test.ts` compiles every program with budgets 2, 3, 4, 8.
+Two normalizations: memory is compared outside the stack region
+[8192, 65536) (spill-slot contents legitimately differ), and stack
+exhaustion (the stack-limit trap or a host RangeError) compares equal
+regardless of where it happened. Fuzzed length arguments are kept <= the
+real array length, since a larger one lets a program legitimately read and
+write into its own spill slots, whose layout is what the test varies.
+
+## Milestones A1 + A2: risk-adaptive hardening and loop versioning
+
+Code in `src/harden/` (config, taint, harden, version). Decisions the spec
+left open, one line each:
+
+- Hardening runs after range analysis and before CSE, so CSE cannot
+  rewrite the `i = i + s` / `i + c` shapes loop versioning matches; CSE and
+  DCE then run on the versioned loops like any other code.
+- Range analysis always runs (it only annotates); `full` and `none` ignore
+  its result for decisions but still report C. `--no-bounds-elim` maps to
+  `--harden=full` and emits exactly the code it did before.
+- Each BoundsCheck now records `access` (read/write) at IR generation and
+  `provenLo`/`provenHi` from range analysis, which gives C directly.
+- Provenance is flow-insensitive per register and context-insensitive
+  across calls (a callee that may return an external value taints every
+  call result); an array load is external if its base or index is.
+  Recursion does not make a function an entry point (`fib` calls itself but
+  is called by `main`).
+- R is rounded to 1e-9 before comparing with tau, so 0.4 + 0.35 is exactly
+  0.75.
+- `budget:F` ranks all unproven sites of the whole program by R/cost
+  (ties by site id), keeps the longest prefix whose cost fits in
+  F * (sum of all sites' cost), and omits the first site that does not fit
+  and everything after it. Kept sites are hoisted when versionable; cost
+  accounting does not credit hoisting.
+- `none` reports every site as Omit (no analysis decision applies); `chuang`
+  does no hoisting.
+- Loop versioning (`version.ts`): the guard is a new IR instruction
+  (`guard`) evaluated in i64 by codegen, so no guard term can wrap. Per the
+  user's extra rule, every versioned loop's guard also requires
+  `Nmax + s <= INT_MAX`, i.e. the update `i = i + s` cannot wrap.
+- A site is hoisted out of its innermost qualifying loop; a site inside a
+  nested loop can be hoisted out of the outer loop when its index is the
+  outer induction variable. Sites in the loop's condition are never hoisted.
+- The fast and slow copies keep the same check ids, so a trap in the slow
+  copy reports the same id as `full`. The source map has one entry per id.
+- A counter-instrumented build (`countChecks`, exported global
+  `checkCount`) was added now, for the A2 tests to observe which copy ran;
+  A3 will use it for dynamic check counts.
+- Commit granularity: A1 and A2 share the IR and pass changes (the
+  decision code produces Hoist, which needs versioning to be meaningful), so
+  they were developed and committed together.
+
+## Milestone A3: evaluation corpus and harness
+
+- **Memory layout for evaluation arrays** (`eval/layout.ts`): the
+  0..4095 test-array region is too small, and the spill stack occupies
+  [8192, 65536) (confined by the prologue stack-limit check, it never writes
+  at or above 65536). Benchmark and bug-program arrays therefore start at
+  65536, laid out in parameter order as GAP, array 0, GAP, array 1, ..., GAP,
+  each GAP 16 bytes of the pattern 0xDEADBEEF. Memory is grown from the host
+  side to fit. The stack cannot reach the arrays: it only grows down from
+  65536. The trap side channel (4096..4107) is unchanged. A run's sentinels
+  are compared afterwards to detect silent corruption.
+- **Kernels** (`bench/*.min`, inputs in `eval/benchmarks.ts`): 16 NovaCraft
+  ports of PolyBench-style kernels, written in their natural form, plus the
+  requested versionable variants `stencilV` and `smoothV` (loop bound
+  computed once into a variable instead of in the loop condition). Kernel
+  list: sumArray, prefixSum, dot, axpy, matvec, stencil, stencilV, smooth,
+  smoothV, histogram, bubbleSort, insertionSort, binarySearch, gather,
+  scatter, reverse. scaleArray from examples/ was not reused (sumArray and
+  prefixSum already cover "analysis proves everything").
+- NovaCraft's `&&` is not short-circuiting (both operands are evaluated), so
+  insertion sort and binary search use explicit flags instead of
+  `j >= 0 && arr[j] > key`, which would read arr[-1].
+- Inputs are seeded, identical across configurations and in bounds; every
+  configuration's result and final arrays are compared with `full`.
+  Inputs are scaled x10 relative to the sizes in `eval/benchmarks.ts`
+  (a first run at x1 had calls of about 1 ms and a median pass-to-pass
+  timing difference of about 40%).
+- **Bug corpus** (`bench/bugs/`, `manifest.json`): 13 programs. Each was run
+  under `--harden=full` before use and traps at exactly the manifest's check
+  id with the triggering input; `tests/eval.test.ts` re-checks this, and that
+  the manifest's line:col, read/write and external/internal match the
+  compiler's own report. No program had to be dropped. One program was
+  changed before use: `neighborCopy` takes `dst` before `src` so that its
+  overflowing write runs through the gap into an actual neighboring array.
+  "external/internal" in the manifest uses the provenance definition of
+  `src/harden/taint.ts` (e.g. `arr[len - i]` is external because it depends
+  on `len`).
+- Security outcome classes: detected (trap at the manifest check),
+  silent_corruption (no trap, sentinel changed), missed_benign (no trap,
+  sentinels intact), plus other_trap / other_trap_after_corruption, which
+  the spec did not name but which the harness reports rather than folding
+  into another class.
+- **Metrics**: checks executed (counter build, `checkCount`) is the main cost
+  metric; loop-versioning guards are counted separately (`guardCount`), so
+  hoisting is not shown as free. Runtime: 5 warm-ups + 30 timed calls per
+  kernel/config, median and IQR; the whole timing pass runs twice, and a
+  kernel's noise is the largest relative difference between the two passes'
+  medians over its configurations. The report only calls a runtime
+  difference a result if it exceeds that noise.
+- Pareto x-axis is checks executed (as a fraction of `full`), not runtime,
+  because runtime noise is large; a second plot uses bug detection as y.
+- Configurations: none, full, proof, strict, balanced, performance,
+  budget:0.25, budget:0.5, chuang; the tau sweep 0..1 step 0.05 is
+  static + dynamic + security only (not timed).
+- **Weights were not tuned.** Kernels were split into tuning and held-out
+  halves in `eval/benchmarks.ts` before any results; the ablation (each
+  weight zeroed at tau = 0.5) is reported per split, and the default weights
+  are unchanged.
+- Outcome of the x10 input scale: it did not reduce timing noise much. In
+  the committed run (`results/raw/timing.csv`) the median kernel's
+  pass-to-pass difference is still 38.7% (max 56.1%), so almost all runtime
+  comparisons are reported as within noise. Checks executed remains the
+  cost metric the conclusions rest on.
+
+## A3b step 1: cost accounting counts loop-versioning guards
+
+The A3 report's cost metric counted bounds checks only, although the
+counter build already recorded guard evaluations (`guards_executed` in
+`results/raw/dynamic.csv` and `sweep.csv`). `eval/report.ts` now uses
+checks + guard evaluations as the cost metric everywhere (tables, Pareto
+plots, sweep), reports checks, guards and their total separately, keeps the
+A3 checks-only numbers in columns labelled "A3 accounting", and adds code
+size per configuration. Only the report changed: the raw A3 CSVs and
+`eval/run.ts` are untouched, and RESULTS.md was regenerated from them.
+
+## A3b: preregistered mutation-corpus evaluation
+
+- `docs/PREREGISTRATION.md` (committed in b3215f9, before any mutation
+  result) fixes H1/H2, metrics, CI method and corpus rules; policies and
+  weights frozen at b1f11bc. Deviations are appended to that file.
+- Only compiler change after the freeze: an opt-in deterministic loop-fuel
+  build option (`fuel`, codegen.ts; FUEL_EXHAUSTED_CHECK_ID = -2), so
+  mutants with unbounded loops end deterministically instead of by a
+  wall-clock timeout. Off by default; the generated code for every A3
+  configuration was checked to be byte-identical with and without the
+  change.
+- `eval/mutation/printer.ts` prints an AST back to source (fully
+  parenthesized); every kernel round-trips to identical WAT.
+  `eval/mutation/operators.ts` enumerates the preregistered operators on the
+  original AST by node path and applies one per variant on a clone.
+- The mutation tooling lives in `eval/mutate.ts` and `eval/mutation/` and
+  does not touch `eval/run.ts`, `eval/exec.ts` or the A3 results.
+- Fuzzed inputs (`eval/mutation/inputs.ts`): 200 per kernel, seeded,
+  honest lengths and each kernel's own preconditions (e.g. `smooth` needs
+  n > k because it returns `dst[k]`); `checkOriginals` verifies every
+  original kernel is clean under `full` on all of them before any mutant
+  runs.
+- Outcomes of identical wasm binaries are computed once per variant (cache
+  by binary hash); many configurations compile to the same code.
+- `npm run eval:mutation` generates the corpus, evaluates it twice and
+  diffs the two runs; a third run (after adding the secondary attribution
+  column) reproduced `outcomes.csv` byte for byte.
+- `silent.csv` is aggregated per (variant, config, attributed site); see
+  Deviations 4 in the preregistration for the secondary attribution.
+- New policy ideas from these results went to `docs/FUTURE.md`, not into
+  the code.
+
+## Milestone A4: tests and docs
+
+- How results are stated: H1 and H2 are hypotheses about **detection per
+  cost** (cost = checks + guards executed). Wherever a headline detection
+  number appears (README.md, docs/LIMITATIONS.md), silent corruption is
+  given next to it. The risk-adaptive policies are not described as safer
+  than `chuang`. On the mutation corpus `chuang` has 0.0% silent corruption
+  and `balanced` 4.3%. Every `balanced` corruption involves an omitted
+  internal write with a partial proof (R = 0.425 < 0.5).
+- Strict-equivalence and soundness tests (`tests/strictEquiv.test.ts`,
+  `tests/analysisSoundness.test.ts`) cover examples/, bench/, bench/bugs/
+  and the fixtures. Their first run failed on bench kernels for inputs
+  whose length argument was larger than the real array (e.g. `len =
+  INT_MAX` for a 6-element array). Checks trust the length argument, so
+  such a program's checked accesses can reach any address in linear
+  memory. An index near INT_MAX wraps the byte address to just below the
+  array, so even arrays placed above the stack do not help. The writes
+  reach the spill stack, after which two builds with different register
+  allocation diverge and spilled loop variables are corrupted. This is
+  not an analysis bug. The A4 tests therefore use length arguments no
+  larger than the real array, with all other ints (loop bounds included)
+  still fuzzed with 0, +-1, INT_MAX and INT_MIN. The limitation is
+  documented in docs/LIMITATIONS.md and pinned by a test. The
+  differential harness gained an optional array base above the stack;
+  the earlier tests keep their old layout and inputs.
+- The spec's soundness property "no out-of-bounds access at a check that
+  proof/strict marked proven **or hoisted**" holds for proven sites but not
+  for hoisted ones. A hoisted check fires under `full` whenever the guard
+  is false, and `strict` then runs the slow copy that keeps it. The test
+  asserts the property that does hold (identical trap in strict), and
+  asserts that hoisted checks do fire on some inputs.
+- Monotonicity is a fast-check property: 300 runs, seed 20261007, random
+  program, weights in [0, 1] and tau pairs in [0, 1.2].
+- `fast-check` added as a dev dependency.
+
+## Milestone A5: honesty audit
+
+See docs/HONESTY_AUDIT.md for the headline-number table (each number with
+its source file) and every claim removed or softened. Docs only: the
+generated sentences of results/RESULTS.md were fixed in the prose strings
+of eval/report.ts and regenerated from the unchanged raw CSVs (a diff shows
+only wording changed). The final check is `npm ci && npm test && npm run
+eval` from a clean clone. Its eval output stays in that clone and is not
+committed, so the committed A3 numbers are not replaced by a rerun.

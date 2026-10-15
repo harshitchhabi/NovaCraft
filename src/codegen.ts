@@ -6,9 +6,19 @@
 // int/bool, an `_f` f32 bank for float), or a load/store against this
 // call's spill region in linear memory. This makes the allocator's decisions
 // actually observable in the emitted code, not just a printed table.
-import { IRFunction, IRInstr, IRProgram, IRPrimType, IRValue } from './ir';
+import { IRFunction, IRInstr, IRProgram, IRPrimType, IRValue, checkEmitted } from './ir';
 import { allocateRegisters, AllocationResult } from './regalloc';
-import { computeFrame, spillOffset, SP_INITIAL, TRAP_INDEX_OFFSET, TRAP_LENGTH_OFFSET, TRAP_CHECK_ID_OFFSET } from './stackFrame';
+import {
+  computeFrame,
+  spillOffset,
+  SP_INITIAL,
+  STACK_LIMIT,
+  STACK_OVERFLOW_CHECK_ID,
+  FUEL_EXHAUSTED_CHECK_ID,
+  TRAP_INDEX_OFFSET,
+  TRAP_LENGTH_OFFSET,
+  TRAP_CHECK_ID_OFFSET,
+} from './stackFrame';
 import { SourceMap, SourceMapEntry } from './sourcemap';
 
 function bank(type: IRPrimType): 'i' | 'f' {
@@ -34,6 +44,9 @@ function collectRegTypes(fn: IRFunction): Map<string, IRPrimType> {
           break;
         case 'call':
           if (instr.dest && instr.type) types.set(instr.dest, instr.type);
+          break;
+        case 'guard':
+          types.set(instr.dest, 'bool');
           break;
         case 'if':
           visit(instr.thenBody);
@@ -66,6 +79,8 @@ class FuncCodegen {
     private readonly alloc: AllocationResult,
     private readonly regTypes: Map<string, IRPrimType>,
     private readonly regBudget: number,
+    private readonly countChecks = false,
+    private readonly fuel = false,
   ) {}
 
   private emit(line: string): void {
@@ -151,6 +166,19 @@ class FuncCodegen {
     this.emit(`  i32.const ${frame.frameSize}`);
     this.emit('  i32.sub');
     this.emit('  local.set $frameBase');
+    if (frame.frameSize > 0) {
+      // Stack-limit check: trap cleanly rather than let the frame grow
+      // into the trap side channel / harness array region below the stack.
+      this.emit('  local.get $frameBase');
+      this.emit(`  i32.const ${STACK_LIMIT}`);
+      this.emit('  i32.lt_s');
+      this.emit('  if');
+      this.emit(`    i32.const ${TRAP_CHECK_ID_OFFSET}`);
+      this.emit(`    i32.const ${STACK_OVERFLOW_CHECK_ID}`);
+      this.emit('    i32.store');
+      this.emit('    unreachable');
+      this.emit('  end');
+    }
     this.emit('  local.get $frameBase');
     this.emit('  global.set $sp');
     for (const p of this.fn.params) {
@@ -232,7 +260,41 @@ class FuncCodegen {
       case 'while':
         this.emitWhile(instr, depth, pad);
         return;
+      case 'guard':
+        this.emitGuard(instr, pad);
+        return;
     }
+  }
+
+  // Loop-versioning guard: every term lhs + a <= rhs + b is evaluated on
+  // sign-extended i64 values, so no term can wrap.
+  private emitGuard(instr: Extract<IRInstr, { op: 'guard' }>, pad: string): void {
+    if (this.countChecks) {
+      this.emit(`${pad}global.get $guard_count`);
+      this.emit(`${pad}i32.const 1`);
+      this.emit(`${pad}i32.add`);
+      this.emit(`${pad}global.set $guard_count`);
+    }
+    this.emit(`${pad}i32.const 1`);
+    const side = (v: IRValue, add: number) => {
+      if (v.kind === 'imm') {
+        this.emit(`${pad}i64.const ${v.value + add}`);
+        return;
+      }
+      this.loadValuePadded(v, pad);
+      this.emit(`${pad}i64.extend_i32_s`);
+      if (add !== 0) {
+        this.emit(`${pad}i64.const ${add}`);
+        this.emit(`${pad}i64.add`);
+      }
+    };
+    for (const t of instr.terms) {
+      side(t.lhs, t.lhsAdd);
+      side(t.rhs, t.rhsAdd);
+      this.emit(`${pad}i64.le_s`);
+      this.emit(`${pad}i32.and`);
+    }
+    this.storeRegPadded(instr.dest, pad);
   }
 
   // ---- padded helpers (loadValue/storeReg emit unindented via this.emit; wrap with padding) ----
@@ -331,19 +393,35 @@ class FuncCodegen {
   }
 
   private emitBoundsCheck(instr: Extract<IRInstr, { op: 'boundscheck' }>, pad: string): void {
-    if (instr.eliminated) {
-      this.emit(`${pad};; BoundsCheck eliminated (range analysis proved it safe): ${instr.arrayName}[${instr.index.kind === 'reg' ? instr.index.name : instr.index.value}]`);
+    if (!checkEmitted(instr)) {
+      const why = instr.fastPath
+        ? 'hoisted (fast path of a versioned loop)'
+        : instr.decision === 'omit'
+          ? 'omitted by hardening policy'
+          : 'eliminated (range analysis proved it safe)';
+      this.emit(`${pad};; BoundsCheck #${instr.id} ${why}: ${instr.arrayName}[${instr.index.kind === 'reg' ? instr.index.name : instr.index.value}]`);
       return;
     }
 
-    this.sourceMapEntries.push({
-      instrOffsetOrIndex: instr.id,
-      line: instr.pos.line,
-      column: instr.pos.column,
-      kind: 'BoundsCheck',
-      functionName: this.fn.name,
-      arrayName: instr.arrayName,
-    });
+    if (this.countChecks) {
+      this.emit(`${pad}global.get $check_count`);
+      this.emit(`${pad}i32.const 1`);
+      this.emit(`${pad}i32.add`);
+      this.emit(`${pad}global.set $check_count`);
+    }
+
+    // A versioned loop emits the same site in its slow copy and (when not
+    // hoisted) its fast copy; one source-map entry per id is enough.
+    if (!this.sourceMapEntries.some((e) => e.instrOffsetOrIndex === instr.id)) {
+      this.sourceMapEntries.push({
+        instrOffsetOrIndex: instr.id,
+        line: instr.pos.line,
+        column: instr.pos.column,
+        kind: 'BoundsCheck',
+        functionName: this.fn.name,
+        arrayName: instr.arrayName,
+      });
+    }
 
     this.loadValuePadded(instr.index, pad);
     this.emit(`${pad}i32.const 0`);
@@ -403,6 +481,23 @@ class FuncCodegen {
     const exitLabel = `$loop${id}_exit`;
     this.emit(`${pad}block ${exitLabel}`);
     this.emit(`${pad}  loop ${contLabel}`);
+    if (this.fuel) {
+      // Fuel-limited build: every loop-head visit costs one unit; running
+      // out traps deterministically with FUEL_EXHAUSTED_CHECK_ID.
+      this.emit(`${pad}    global.get $fuel`);
+      this.emit(`${pad}    i32.const 1`);
+      this.emit(`${pad}    i32.sub`);
+      this.emit(`${pad}    global.set $fuel`);
+      this.emit(`${pad}    global.get $fuel`);
+      this.emit(`${pad}    i32.const 0`);
+      this.emit(`${pad}    i32.lt_s`);
+      this.emit(`${pad}    if`);
+      this.emit(`${pad}      i32.const ${TRAP_CHECK_ID_OFFSET}`);
+      this.emit(`${pad}      i32.const ${FUEL_EXHAUSTED_CHECK_ID}`);
+      this.emit(`${pad}      i32.store`);
+      this.emit(`${pad}      unreachable`);
+      this.emit(`${pad}    end`);
+    }
     this.emitList(instr.condInstrs, depth + 2);
     this.loadValuePadded(instr.cond, pad + '    ');
     this.emit(`${pad}    i32.eqz`);
@@ -414,12 +509,33 @@ class FuncCodegen {
   }
 }
 
-export function generateModule(program: IRProgram, regBudget: number): CodegenResult {
+export interface CodegenOptions {
+  // Counter-instrumented build: every executed BoundsCheck increments a
+  // global exported as `checkCount`, every executed loop-versioning guard
+  // one exported as `guardCount` (deterministic dynamic counts).
+  countChecks?: boolean;
+  // Deterministic loop fuel: when set, each run may visit loop heads at most
+  // this many times in total (the global is exported as `fuel` so a host
+  // can reset it between calls); exhausting it traps.
+  fuel?: number;
+}
+
+export function generateModule(program: IRProgram, regBudget: number, opts: CodegenOptions = {}): CodegenResult {
   const lines: string[] = [];
   lines.push('(module');
   lines.push('  (import "env" "print" (func $print (param i32)))');
   lines.push('  (memory (export "memory") 1)');
   lines.push(`  (global $sp (mut i32) (i32.const ${SP_INITIAL}))`);
+  if (opts.fuel !== undefined) {
+    lines.push(`  (global $fuel (mut i32) (i32.const ${opts.fuel}))`);
+    lines.push('  (export "fuel" (global $fuel))');
+  }
+  if (opts.countChecks) {
+    lines.push('  (global $check_count (mut i32) (i32.const 0))');
+    lines.push('  (export "checkCount" (global $check_count))');
+    lines.push('  (global $guard_count (mut i32) (i32.const 0))');
+    lines.push('  (export "guardCount" (global $guard_count))');
+  }
 
   const sourceMapEntries: SourceMapEntry[] = [];
   const allocations = new Map<string, AllocationResult>();
@@ -428,7 +544,7 @@ export function generateModule(program: IRProgram, regBudget: number): CodegenRe
     const alloc = allocateRegisters(fn, regBudget);
     allocations.set(fn.name, alloc);
     const regTypes = collectRegTypes(fn);
-    const gen = new FuncCodegen(fn, alloc, regTypes, regBudget);
+    const gen = new FuncCodegen(fn, alloc, regTypes, regBudget, !!opts.countChecks, opts.fuel !== undefined);
     const result = gen.generate();
     for (const l of result.wat) lines.push('  ' + l);
     sourceMapEntries.push(...result.sourceMap);

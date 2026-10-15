@@ -1,0 +1,27 @@
+// mutation insertionSort-032: index-is-length at 24:12 (arr[e] to arr[len])
+func insertionSort(arr: int[], len: int) -> int {
+    for (let i: int = 1; (i < len); i = (i + 1)) {
+        let key: int = arr[i];
+        let j: int = (i - 1);
+        let moving: bool = true;
+        while (moving) {
+            if ((j < 0)) {
+                moving = false;
+            } else {
+                let v: int = arr[j];
+                if ((v > key)) {
+                    arr[(j + 1)] = v;
+                    j = (j - 1);
+                } else {
+                    moving = false;
+                }
+            }
+        }
+        arr[(j + 1)] = key;
+    }
+    return arr[len];
+}
+
+func main() -> int {
+    return 0;
+}

@@ -1,0 +1,14 @@
+// mutation sumArray-000: start-minus-one at 4:5 (i = 0 to i = -1)
+func sumArray(arr: int[], len: int) -> int {
+    let total: int = 0;
+    let i: int = (-1);
+    while ((i < len)) {
+        total = (total + arr[i]);
+        i = (i + 1);
+    }
+    return total;
+}
+
+func main() -> int {
+    return 0;
+}

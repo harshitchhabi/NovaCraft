@@ -1,0 +1,11 @@
+// BUG: `i <= len` writes one element past the end (internal index, write).
+func fillBad(arr: int[], len: int, v: int) -> int {
+    for (let i: int = 0; i <= len; i = i + 1) {
+        arr[i] = v;
+    }
+    return 0;
+}
+
+func main() -> int {
+    return 0;
+}

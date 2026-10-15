@@ -1,0 +1,13 @@
+// mutation prefixSum-008: index-plus-one at 5:9 (arr[e] to arr[e + 1])
+func prefixSum(arr: int[], len: int) -> int {
+    let i: int = 1;
+    while ((i < len)) {
+        arr[(i + 1)] = (arr[(i - 1)] + arr[i]);
+        i = (i + 1);
+    }
+    return i;
+}
+
+func main() -> int {
+    return 0;
+}

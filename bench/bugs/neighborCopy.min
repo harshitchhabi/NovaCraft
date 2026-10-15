@@ -1,0 +1,13 @@
+// BUG: copies src into dst using src's length; dst is shorter, so the copy
+// runs past dst, through the sentinel gap, into the array laid out next to
+// it (here src itself) (internal index, write).
+func copyBad(dst: int[], dlen: int, src: int[], slen: int) -> int {
+    for (let i: int = 0; i < slen; i = i + 1) {
+        dst[i] = src[i];
+    }
+    return 0;
+}
+
+func main() -> int {
+    return 0;
+}

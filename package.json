@@ -11,12 +11,15 @@
     "test": "jest",
     "novac": "ts-node src/cli.ts",
     "benchmark": "ts-node benchmark/boundsCheckBenchmark.ts",
-    "anomaly": "ts-node tools/anomaly-cli.ts"
+    "anomaly": "ts-node tools/anomaly-cli.ts",
+    "eval": "ts-node eval/run.ts && ts-node eval/report.ts",
+    "eval:mutation": "ts-node eval/mutation/all.ts"
   },
   "license": "MIT",
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.30",
+    "fast-check": "^4.10.2",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",

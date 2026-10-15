@@ -1,0 +1,11 @@
+// y = alpha * x + y over the first n elements.
+func axpy(x: int[], xlen: int, y: int[], ylen: int, alpha: int, n: int) -> int {
+    for (let i: int = 0; i < n; i = i + 1) {
+        y[i] = alpha * x[i] + y[i];
+    }
+    return y[0];
+}
+
+func main() -> int {
+    return 0;
+}

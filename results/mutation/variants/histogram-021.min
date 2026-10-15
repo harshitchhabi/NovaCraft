@@ -1,0 +1,12 @@
+// mutation histogram-021: index-minus-one at 7:12 (hist[e] to hist[e - 1])
+func histogram(data: int[], dlen: int, hist: int[], hlen: int) -> int {
+    for (let i: int = 0; (i < dlen); i = (i + 1)) {
+        let b: int = data[i];
+        hist[b] = (hist[b] + 1);
+    }
+    return hist[(0 - 1)];
+}
+
+func main() -> int {
+    return 0;
+}

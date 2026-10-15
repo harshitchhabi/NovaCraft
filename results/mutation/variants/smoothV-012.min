@@ -1,0 +1,22 @@
+// mutation smoothV-012: index-plus-one at 15:9 (dst[e] to dst[e + 1])
+func smoothV(src: int[], slen: int, dst: int[], dlen: int, k: int) -> int {
+    let last: int = (slen - k);
+    let width: int = ((2 * k) + 1);
+    let i: int = k;
+    while ((i < last)) {
+        let s: int = 0;
+        let j: int = (i - k);
+        let hi: int = (i + k);
+        while ((j <= hi)) {
+            s = (s + src[j]);
+            j = (j + 1);
+        }
+        dst[(i + 1)] = (s / width);
+        i = (i + 1);
+    }
+    return dst[k];
+}
+
+func main() -> int {
+    return 0;
+}

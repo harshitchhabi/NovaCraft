@@ -1,0 +1,12 @@
+// mutation histogram-003: swap-length at 3:30 (dlen to hlen)
+func histogram(data: int[], dlen: int, hist: int[], hlen: int) -> int {
+    for (let i: int = 0; (i < hlen); i = (i + 1)) {
+        let b: int = data[i];
+        hist[b] = (hist[b] + 1);
+    }
+    return hist[0];
+}
+
+func main() -> int {
+    return 0;
+}

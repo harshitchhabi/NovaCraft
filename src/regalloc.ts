@@ -80,6 +80,15 @@ function flattenList(instrs: IRInstr[], points: LivePoint[]): void {
         points.push(p);
         break;
       }
+      case 'guard': {
+        const p: LivePoint = { defs: [instr.dest], uses: [] };
+        for (const t of instr.terms) {
+          addUse(t.lhs, p);
+          addUse(t.rhs, p);
+        }
+        points.push(p);
+        break;
+      }
       case 'if': {
         const p: LivePoint = { defs: [], uses: [] };
         addUse(instr.cond, p);

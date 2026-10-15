@@ -47,6 +47,12 @@ function collectUsed(instrs: IRInstr[], used: Set<string>): void {
       case 'print':
         addUse(instr.value, used);
         break;
+      case 'guard':
+        for (const t of instr.terms) {
+          addUse(t.lhs, used);
+          addUse(t.rhs, used);
+        }
+        break;
       case 'if':
         addUse(instr.cond, used);
         collectUsed(instr.thenBody, used);
@@ -88,13 +94,23 @@ function pruneUnreachable(instrs: IRInstr[]): { instrs: IRInstr[]; terminates: b
   return { instrs: out, terminates: terminated };
 }
 
+// Integer `/` and `%` trap at runtime on a zero divisor (and `/` on
+// INT_MIN / -1); removing an unused one would remove the trap.
+function mayTrap(instr: IRInstr): boolean {
+  if (instr.op !== 'binop' || (instr.bop !== '/' && instr.bop !== '%') || instr.type !== 'int') return false;
+  const r = instr.right;
+  if (r.kind !== 'imm' || r.value === 0) return true;
+  return r.value === -1 && instr.bop === '/' && !(instr.left.kind === 'imm' && instr.left.value !== -2147483648);
+}
+
 function filterDeadAssigns(instrs: IRInstr[], used: Set<string>): { instrs: IRInstr[]; changed: boolean } {
   const out: IRInstr[] = [];
   let changed = false;
   for (const instr of instrs) {
     if (
-      (instr.op === 'const' || instr.op === 'move' || instr.op === 'binop' || instr.op === 'unop') &&
-      !used.has(instr.dest)
+      (instr.op === 'const' || instr.op === 'move' || instr.op === 'binop' || instr.op === 'unop' || instr.op === 'guard') &&
+      !used.has(instr.dest) &&
+      !mayTrap(instr)
     ) {
       changed = true;
       continue;

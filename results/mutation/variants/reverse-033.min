@@ -1,0 +1,15 @@
+// mutation reverse-033: index-is-length at 10:12 (arr[e] to arr[len])
+func reverse(arr: int[], len: int) -> int {
+    let half: int = (len / 2);
+    for (let i: int = 0; (i < half); i = (i + 1)) {
+        let j: int = ((len - 1) - i);
+        let t: int = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+    }
+    return arr[len];
+}
+
+func main() -> int {
+    return 0;
+}

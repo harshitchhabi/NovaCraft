@@ -1,0 +1,15 @@
+// BUG: compares each element with its successor, reading arr[len] on the
+// last iteration (internal index, read).
+func countRises(arr: int[], len: int) -> int {
+    let c: int = 0;
+    for (let i: int = 0; i < len; i = i + 1) {
+        if (arr[i + 1] > arr[i]) {
+            c = c + 1;
+        }
+    }
+    return c;
+}
+
+func main() -> int {
+    return 0;
+}

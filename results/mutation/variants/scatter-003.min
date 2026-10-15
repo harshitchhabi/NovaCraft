@@ -1,0 +1,11 @@
+// mutation scatter-003: swap-length at 3:30 (alen to ilen)
+func scatter(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; (i < ilen); i = (i + 1)) {
+        out[idx[i]] = a[i];
+    }
+    return out[0];
+}
+
+func main() -> int {
+    return 0;
+}

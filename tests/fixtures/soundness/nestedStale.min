@@ -1,0 +1,20 @@
+// Audit case (d): the outer loop's fact `i < len` holds on the first
+// iteration of the inner loop only; the inner loop increments `i`, so on
+// later inner iterations arr[i] can be out of bounds.
+func nestedStale(arr: int[], len: int) -> int {
+    let i: int = 0;
+    let s: int = 0;
+    while (i < len) {
+        let j: int = 0;
+        while (j < 3) {
+            s = s + arr[i];
+            i = i + 1;
+            j = j + 1;
+        }
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

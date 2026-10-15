@@ -1,0 +1,14 @@
+// mutation sumArray-005: swap-index-var at 6:29 (i to len in arr[...])
+func sumArray(arr: int[], len: int) -> int {
+    let total: int = 0;
+    let i: int = 0;
+    while ((i < len)) {
+        total = (total + arr[len]);
+        i = (i + 1);
+    }
+    return total;
+}
+
+func main() -> int {
+    return 0;
+}

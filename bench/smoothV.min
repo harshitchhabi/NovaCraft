@@ -1,0 +1,23 @@
+// Moving-average smoothing, versionable variant: both loop bounds are
+// computed once into variables the loops never assign.
+func smoothV(src: int[], slen: int, dst: int[], dlen: int, k: int) -> int {
+    let last: int = slen - k;
+    let width: int = 2 * k + 1;
+    let i: int = k;
+    while (i < last) {
+        let s: int = 0;
+        let j: int = i - k;
+        let hi: int = i + k;
+        while (j <= hi) {
+            s = s + src[j];
+            j = j + 1;
+        }
+        dst[i] = s / width;
+        i = i + 1;
+    }
+    return dst[k];
+}
+
+func main() -> int {
+    return 0;
+}

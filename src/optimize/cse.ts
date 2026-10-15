@@ -46,6 +46,7 @@ function collectDefRegs(instrs: IRInstr[], out: Set<string>): void {
         out.add(instr.dest);
         break;
       case 'call':
+      case 'guard':
         if (instr.dest) out.add(instr.dest);
         break;
       case 'boundscheck':
@@ -100,6 +101,7 @@ function cseList(instrs: IRInstr[]): IRInstr[] {
         out.push(instr);
         break;
       case 'call':
+      case 'guard':
         if (instr.dest) avail = invalidate(avail, instr.dest);
         out.push(instr);
         break;

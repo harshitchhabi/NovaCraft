@@ -1,0 +1,12 @@
+// mutation dot-000: start-minus-one at 4:10 (i = 0 to i = -1)
+func dot(a: int[], alen: int, b: int[], blen: int) -> int {
+    let s: int = 0;
+    for (let i: int = (-1); (i < alen); i = (i + 1)) {
+        s = (s + (a[i] * b[i]));
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

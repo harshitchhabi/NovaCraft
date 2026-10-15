@@ -1,0 +1,15 @@
+// mutation reverse-000: start-minus-one at 4:10 (i = 0 to i = -1)
+func reverse(arr: int[], len: int) -> int {
+    let half: int = (len / 2);
+    for (let i: int = (-1); (i < half); i = (i + 1)) {
+        let j: int = ((len - 1) - i);
+        let t: int = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+    }
+    return arr[0];
+}
+
+func main() -> int {
+    return 0;
+}

@@ -1,0 +1,12 @@
+// BUG: scatter trusts the index array (external index, write).
+func scatterBad(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; i < alen; i = i + 1) {
+        let k: int = idx[i];
+        out[k] = a[i];
+    }
+    return 0;
+}
+
+func main() -> int {
+    return 0;
+}

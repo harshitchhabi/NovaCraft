@@ -1,0 +1,19 @@
+// Audit case (a): i32 wraparound in interval arithmetic. `i` is in [0, 1],
+// so `j = i + 2147483647` is INT_MAX or (wrapped) INT_MIN. An analysis that
+// does exact (non-wrapping) arithmetic concludes j >= 0 and, with the loop
+// fact j < len, wrongly eliminates the check on arr[j].
+func wrapIndex(arr: int[], len: int, k: int) -> int {
+    let i: int = 0;
+    if (k > 0) {
+        i = 1;
+    }
+    let j: int = i + 2147483647;
+    while (j < len) {
+        return arr[j];
+    }
+    return 0;
+}
+
+func main() -> int {
+    return 0;
+}

@@ -1,0 +1,14 @@
+// Audit case (b): `i <= len` admits i == len, so arr[i] must keep its check.
+func offByOne(arr: int[], len: int) -> int {
+    let i: int = 0;
+    let s: int = 0;
+    while (i <= len) {
+        s = s + arr[i];
+        i = i + 1;
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

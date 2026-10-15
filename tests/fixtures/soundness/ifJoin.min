@@ -1,0 +1,36 @@
+// Audit case (e): a fact killed on one branch of an if must not survive
+// the join.
+func ifJoin(arr: int[], len: int, k: int) -> int {
+    let i: int = 0;
+    let s: int = 0;
+    while (i < len) {
+        if (k > 0) {
+            i = i + 1;
+        } else {
+            s = s + 1;
+        }
+        s = s + arr[i];
+        i = i + 1;
+    }
+    return s;
+}
+
+// Both branches preserve the fact: arr[i] stays provable.
+func ifJoinSafe(arr: int[], len: int, k: int) -> int {
+    let i: int = 0;
+    let s: int = 0;
+    while (i < len) {
+        if (k > 0) {
+            s = s + 2;
+        } else {
+            s = s + 1;
+        }
+        s = s + arr[i];
+        i = i + 1;
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

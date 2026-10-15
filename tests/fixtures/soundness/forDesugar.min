@@ -1,0 +1,33 @@
+// Audit case (f): `for` desugars to `while` with the update appended.
+func forSum(arr: int[], len: int) -> int {
+    let s: int = 0;
+    for (let i: int = 0; i < len; i = i + 1) {
+        s = s + arr[i];
+    }
+    return s;
+}
+
+// Stride 2 with a +1 offset: i < len does not imply i + 1 < len.
+func forStride(arr: int[], len: int) -> int {
+    let s: int = 0;
+    for (let i: int = 0; i < len; i = i + 2) {
+        s = s + arr[i + 1];
+    }
+    return s;
+}
+
+// The update runs after the body, so the body's use of i is still covered
+// by the condition; a read after the loop at the last i + 1 is not.
+func forAfter(arr: int[], len: int) -> int {
+    let s: int = 0;
+    let n: int = 0;
+    for (let i: int = 0; i < len; i = i + 1) {
+        s = s + arr[i];
+        n = i + 1;
+    }
+    return s + arr[n];
+}
+
+func main() -> int {
+    return 0;
+}

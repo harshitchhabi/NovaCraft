@@ -1,0 +1,14 @@
+// BUG: `i <= len` reads one element past the end (internal index, read).
+func sumBad(arr: int[], len: int) -> int {
+    let s: int = 0;
+    let i: int = 0;
+    while (i <= len) {
+        s = s + arr[i];
+        i = i + 1;
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

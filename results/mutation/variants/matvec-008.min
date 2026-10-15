@@ -1,0 +1,15 @@
+// mutation matvec-008: swap-index-var at 6:23 (i to outlen in a[...])
+func matvec(a: int[], alen: int, x: int[], xlen: int, out: int[], outlen: int, rows: int, cols: int) -> int {
+    for (let i: int = 0; (i < rows); i = (i + 1)) {
+        let s: int = 0;
+        for (let j: int = 0; (j < cols); j = (j + 1)) {
+            s = (s + (a[((outlen * cols) + j)] * x[j]));
+        }
+        out[i] = s;
+    }
+    return out[0];
+}
+
+func main() -> int {
+    return 0;
+}

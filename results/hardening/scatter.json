@@ -1,0 +1,709 @@
+{
+  "none": {
+    "policy": "none",
+    "weights": {
+      "wP": 0.4,
+      "wC": 0.35,
+      "wW": 0.25
+    },
+    "entryPoints": [
+      "scatter",
+      "main"
+    ],
+    "sites": [
+      {
+        "id": 0,
+        "function": "scatter",
+        "line": 4,
+        "column": 23,
+        "access": "read",
+        "P": 0,
+        "C": 0,
+        "W": 0,
+        "R": null,
+        "D": 1,
+        "cost": 10,
+        "proven": true,
+        "versionable": true,
+        "decision": "omit"
+      },
+      {
+        "id": 1,
+        "function": "scatter",
+        "line": 4,
+        "column": 13,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": true,
+        "decision": "omit"
+      },
+      {
+        "id": 2,
+        "function": "scatter",
+        "line": 4,
+        "column": 9,
+        "access": "write",
+        "P": 1,
+        "C": 1,
+        "W": 1,
+        "R": 1,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": false,
+        "decision": "omit"
+      },
+      {
+        "id": 3,
+        "function": "scatter",
+        "line": 6,
+        "column": 12,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 0,
+        "cost": 1,
+        "proven": false,
+        "versionable": false,
+        "decision": "omit"
+      }
+    ]
+  },
+  "full": {
+    "policy": "full",
+    "weights": {
+      "wP": 0.4,
+      "wC": 0.35,
+      "wW": 0.25
+    },
+    "entryPoints": [
+      "scatter",
+      "main"
+    ],
+    "sites": [
+      {
+        "id": 0,
+        "function": "scatter",
+        "line": 4,
+        "column": 23,
+        "access": "read",
+        "P": 0,
+        "C": 0,
+        "W": 0,
+        "R": null,
+        "D": 1,
+        "cost": 10,
+        "proven": true,
+        "versionable": true,
+        "decision": "retain"
+      },
+      {
+        "id": 1,
+        "function": "scatter",
+        "line": 4,
+        "column": 13,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": true,
+        "decision": "retain"
+      },
+      {
+        "id": 2,
+        "function": "scatter",
+        "line": 4,
+        "column": 9,
+        "access": "write",
+        "P": 1,
+        "C": 1,
+        "W": 1,
+        "R": 1,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      },
+      {
+        "id": 3,
+        "function": "scatter",
+        "line": 6,
+        "column": 12,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 0,
+        "cost": 1,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      }
+    ]
+  },
+  "proof": {
+    "policy": "proof",
+    "weights": {
+      "wP": 0.4,
+      "wC": 0.35,
+      "wW": 0.25
+    },
+    "entryPoints": [
+      "scatter",
+      "main"
+    ],
+    "sites": [
+      {
+        "id": 0,
+        "function": "scatter",
+        "line": 4,
+        "column": 23,
+        "access": "read",
+        "P": 0,
+        "C": 0,
+        "W": 0,
+        "R": null,
+        "D": 1,
+        "cost": 10,
+        "proven": true,
+        "versionable": true,
+        "decision": "eliminate"
+      },
+      {
+        "id": 1,
+        "function": "scatter",
+        "line": 4,
+        "column": 13,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": true,
+        "decision": "retain"
+      },
+      {
+        "id": 2,
+        "function": "scatter",
+        "line": 4,
+        "column": 9,
+        "access": "write",
+        "P": 1,
+        "C": 1,
+        "W": 1,
+        "R": 1,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      },
+      {
+        "id": 3,
+        "function": "scatter",
+        "line": 6,
+        "column": 12,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 0,
+        "cost": 1,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      }
+    ]
+  },
+  "strict": {
+    "policy": "strict",
+    "weights": {
+      "wP": 0.4,
+      "wC": 0.35,
+      "wW": 0.25
+    },
+    "entryPoints": [
+      "scatter",
+      "main"
+    ],
+    "sites": [
+      {
+        "id": 0,
+        "function": "scatter",
+        "line": 4,
+        "column": 23,
+        "access": "read",
+        "P": 0,
+        "C": 0,
+        "W": 0,
+        "R": null,
+        "D": 1,
+        "cost": 10,
+        "proven": true,
+        "versionable": true,
+        "decision": "eliminate"
+      },
+      {
+        "id": 1,
+        "function": "scatter",
+        "line": 4,
+        "column": 13,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": true,
+        "decision": "hoist"
+      },
+      {
+        "id": 2,
+        "function": "scatter",
+        "line": 4,
+        "column": 9,
+        "access": "write",
+        "P": 1,
+        "C": 1,
+        "W": 1,
+        "R": 1,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      },
+      {
+        "id": 3,
+        "function": "scatter",
+        "line": 6,
+        "column": 12,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 0,
+        "cost": 1,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      }
+    ],
+    "tau": 0
+  },
+  "balanced": {
+    "policy": "balanced",
+    "weights": {
+      "wP": 0.4,
+      "wC": 0.35,
+      "wW": 0.25
+    },
+    "entryPoints": [
+      "scatter",
+      "main"
+    ],
+    "sites": [
+      {
+        "id": 0,
+        "function": "scatter",
+        "line": 4,
+        "column": 23,
+        "access": "read",
+        "P": 0,
+        "C": 0,
+        "W": 0,
+        "R": null,
+        "D": 1,
+        "cost": 10,
+        "proven": true,
+        "versionable": true,
+        "decision": "eliminate"
+      },
+      {
+        "id": 1,
+        "function": "scatter",
+        "line": 4,
+        "column": 13,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": true,
+        "decision": "omit"
+      },
+      {
+        "id": 2,
+        "function": "scatter",
+        "line": 4,
+        "column": 9,
+        "access": "write",
+        "P": 1,
+        "C": 1,
+        "W": 1,
+        "R": 1,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      },
+      {
+        "id": 3,
+        "function": "scatter",
+        "line": 6,
+        "column": 12,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 0,
+        "cost": 1,
+        "proven": false,
+        "versionable": false,
+        "decision": "omit"
+      }
+    ],
+    "tau": 0.5
+  },
+  "performance": {
+    "policy": "performance",
+    "weights": {
+      "wP": 0.4,
+      "wC": 0.35,
+      "wW": 0.25
+    },
+    "entryPoints": [
+      "scatter",
+      "main"
+    ],
+    "sites": [
+      {
+        "id": 0,
+        "function": "scatter",
+        "line": 4,
+        "column": 23,
+        "access": "read",
+        "P": 0,
+        "C": 0,
+        "W": 0,
+        "R": null,
+        "D": 1,
+        "cost": 10,
+        "proven": true,
+        "versionable": true,
+        "decision": "eliminate"
+      },
+      {
+        "id": 1,
+        "function": "scatter",
+        "line": 4,
+        "column": 13,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": true,
+        "decision": "omit"
+      },
+      {
+        "id": 2,
+        "function": "scatter",
+        "line": 4,
+        "column": 9,
+        "access": "write",
+        "P": 1,
+        "C": 1,
+        "W": 1,
+        "R": 1,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      },
+      {
+        "id": 3,
+        "function": "scatter",
+        "line": 6,
+        "column": 12,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 0,
+        "cost": 1,
+        "proven": false,
+        "versionable": false,
+        "decision": "omit"
+      }
+    ],
+    "tau": 0.8
+  },
+  "budget:0.25": {
+    "policy": "budget:0.25",
+    "weights": {
+      "wP": 0.4,
+      "wC": 0.35,
+      "wW": 0.25
+    },
+    "entryPoints": [
+      "scatter",
+      "main"
+    ],
+    "sites": [
+      {
+        "id": 0,
+        "function": "scatter",
+        "line": 4,
+        "column": 23,
+        "access": "read",
+        "P": 0,
+        "C": 0,
+        "W": 0,
+        "R": null,
+        "D": 1,
+        "cost": 10,
+        "proven": true,
+        "versionable": true,
+        "decision": "eliminate"
+      },
+      {
+        "id": 1,
+        "function": "scatter",
+        "line": 4,
+        "column": 13,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": true,
+        "decision": "omit"
+      },
+      {
+        "id": 2,
+        "function": "scatter",
+        "line": 4,
+        "column": 9,
+        "access": "write",
+        "P": 1,
+        "C": 1,
+        "W": 1,
+        "R": 1,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": false,
+        "decision": "omit"
+      },
+      {
+        "id": 3,
+        "function": "scatter",
+        "line": 6,
+        "column": 12,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 0,
+        "cost": 1,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      }
+    ],
+    "budgetFraction": 0.25
+  },
+  "budget:0.5": {
+    "policy": "budget:0.5",
+    "weights": {
+      "wP": 0.4,
+      "wC": 0.35,
+      "wW": 0.25
+    },
+    "entryPoints": [
+      "scatter",
+      "main"
+    ],
+    "sites": [
+      {
+        "id": 0,
+        "function": "scatter",
+        "line": 4,
+        "column": 23,
+        "access": "read",
+        "P": 0,
+        "C": 0,
+        "W": 0,
+        "R": null,
+        "D": 1,
+        "cost": 10,
+        "proven": true,
+        "versionable": true,
+        "decision": "eliminate"
+      },
+      {
+        "id": 1,
+        "function": "scatter",
+        "line": 4,
+        "column": 13,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": true,
+        "decision": "omit"
+      },
+      {
+        "id": 2,
+        "function": "scatter",
+        "line": 4,
+        "column": 9,
+        "access": "write",
+        "P": 1,
+        "C": 1,
+        "W": 1,
+        "R": 1,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      },
+      {
+        "id": 3,
+        "function": "scatter",
+        "line": 6,
+        "column": 12,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 0,
+        "cost": 1,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      }
+    ],
+    "budgetFraction": 0.5
+  },
+  "chuang": {
+    "policy": "chuang",
+    "weights": {
+      "wP": 0.4,
+      "wC": 0.35,
+      "wW": 0.25
+    },
+    "entryPoints": [
+      "scatter",
+      "main"
+    ],
+    "sites": [
+      {
+        "id": 0,
+        "function": "scatter",
+        "line": 4,
+        "column": 23,
+        "access": "read",
+        "P": 0,
+        "C": 0,
+        "W": 0,
+        "R": null,
+        "D": 1,
+        "cost": 10,
+        "proven": true,
+        "versionable": true,
+        "decision": "eliminate"
+      },
+      {
+        "id": 1,
+        "function": "scatter",
+        "line": 4,
+        "column": 13,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": true,
+        "decision": "omit"
+      },
+      {
+        "id": 2,
+        "function": "scatter",
+        "line": 4,
+        "column": 9,
+        "access": "write",
+        "P": 1,
+        "C": 1,
+        "W": 1,
+        "R": 1,
+        "D": 1,
+        "cost": 10,
+        "proven": false,
+        "versionable": false,
+        "decision": "retain"
+      },
+      {
+        "id": 3,
+        "function": "scatter",
+        "line": 6,
+        "column": 12,
+        "access": "read",
+        "P": 0,
+        "C": 0.5,
+        "W": 0,
+        "R": 0.175,
+        "D": 0,
+        "cost": 1,
+        "proven": false,
+        "versionable": false,
+        "decision": "omit"
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+// Sum of an array (same kernel as examples/sumArray.min). Provable.
+func sumArray(arr: int[], len: int) -> int {
+    let total: int = 0;
+    let i: int = 0;
+    while (i < len) {
+        total = total + arr[i];
+        i = i + 1;
+    }
+    return total;
+}
+
+func main() -> int {
+    return 0;
+}

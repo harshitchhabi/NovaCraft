@@ -1,0 +1,28 @@
+// Audit: the loop fixed point must actually converge. `e` takes the value
+// `a` had four iterations earlier, so it grows past 2 after a few rounds;
+// a fixed point that gives up after a fixed iteration count without
+// checking stability still believes e is in [0, 0] and removes the check.
+func delayChain(arr: int[], len: int) -> int {
+    len = 3;
+    let a: int = 0;
+    let b: int = 0;
+    let c: int = 0;
+    let d: int = 0;
+    let e: int = 0;
+    let i: int = 0;
+    let s: int = 0;
+    while (i < 10) {
+        s = s + arr[e];
+        e = d;
+        d = c;
+        c = b;
+        b = a;
+        a = a + 1;
+        i = i + 1;
+    }
+    return s;
+}
+
+func main() -> int {
+    return 0;
+}

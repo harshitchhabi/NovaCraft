@@ -1,0 +1,36 @@
+// Audit case (g): duplicated index expressions (CSE runs after range
+// analysis and rewrites the second `i + 1` into a move) and constants that
+// constant folding propagates into the check's length operand.
+func cseDup(arr: int[], len: int) -> int {
+    let s: int = 0;
+    if (len > 0) {
+        let i: int = 0;
+        while (i < len - 1) {
+            let a: int = i + 1;
+            let b: int = i + 1;
+            s = s + arr[a] + arr[b];
+            i = i + 1;
+        }
+    }
+    return s;
+}
+
+func constLen(arr: int[], len: int) -> int {
+    len = 4;
+    let s: int = 0;
+    let i: int = 0;
+    while (i < 4) {
+        s = s + arr[i];
+        i = i + 1;
+    }
+    return s + arr[3] + arr[4];
+}
+
+func divTrap(x: int) -> int {
+    let unused: int = 10 / x;
+    return 1;
+}
+
+func main() -> int {
+    return 0;
+}

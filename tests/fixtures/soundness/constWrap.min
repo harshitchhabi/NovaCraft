@@ -1,0 +1,26 @@
+// Audit case (a)/(g): constant folding must use i32 semantics.
+func addWrap() -> int {
+    return 2147483647 + 1;
+}
+
+func mulWrap() -> int {
+    return 65536 * 65536;
+}
+
+func negWrap() -> int {
+    let m: int = 0 - 2147483647 - 1;
+    return 0 - m;
+}
+
+// Folded index: 2147483647 + 2147483647 wraps to -2, so arr[x] must trap.
+func foldedIndex(arr: int[], len: int) -> int {
+    let x: int = 2147483647 + 2147483647;
+    return arr[x];
+}
+
+func main() -> int {
+    print(addWrap());
+    print(mulWrap());
+    print(negWrap());
+    return 0;
+}

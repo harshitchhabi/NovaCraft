@@ -1,0 +1,10 @@
+// BUG: stores at a caller-supplied index with no validation
+// (external index, write).
+func setAt(arr: int[], len: int, k: int, v: int) -> int {
+    arr[k] = v;
+    return 0;
+}
+
+func main() -> int {
+    return 0;
+}

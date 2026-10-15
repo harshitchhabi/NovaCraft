@@ -1,0 +1,11 @@
+// mutation gather-020: index-plus-one at 6:12 (out[e] to out[e + 1])
+func gather(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; (i < ilen); i = (i + 1)) {
+        out[i] = a[idx[i]];
+    }
+    return out[(0 + 1)];
+}
+
+func main() -> int {
+    return 0;
+}

@@ -1,0 +1,1 @@
+The evaluation was run twice in separate passes over the same corpus. `cost.csv` byte-identical, `outcomes.csv` byte-identical, `silent.csv` byte-identical. Detection results are identical between the two runs.

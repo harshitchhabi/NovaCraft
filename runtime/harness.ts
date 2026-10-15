@@ -4,7 +4,7 @@
 // location using the trap side-channel + source map.
 import wabtInit from 'wabt';
 import { SourceMap, findEntry } from '../src/sourcemap';
-import { TRAP_INDEX_OFFSET, TRAP_LENGTH_OFFSET, TRAP_CHECK_ID_OFFSET } from '../src/stackFrame';
+import { TRAP_INDEX_OFFSET, TRAP_LENGTH_OFFSET, TRAP_CHECK_ID_OFFSET, STACK_OVERFLOW_CHECK_ID } from '../src/stackFrame';
 
 export interface HarnessInstance {
   instance: WebAssembly.Instance;
@@ -63,6 +63,7 @@ export function readTrapSideChannel(memory: WebAssembly.Memory): TrapSideChannel
 }
 
 export function formatTrapMessage(filename: string, sourceMap: SourceMap, sideChannel: TrapSideChannel): string {
+  if (sideChannel.checkId === STACK_OVERFLOW_CHECK_ID) return 'Runtime error: stack overflow';
   const entry = findEntry(sourceMap, sideChannel.checkId);
   const line = entry?.line ?? 0;
   const column = entry?.column ?? 0;

@@ -1,0 +1,19 @@
+// mutation smooth-003: index-plus-one at 9:21 (src[e] to src[e + 1])
+func smooth(src: int[], slen: int, dst: int[], dlen: int, k: int) -> int {
+    let i: int = k;
+    while ((i < (slen - k))) {
+        let s: int = 0;
+        let j: int = (i - k);
+        while ((j <= (i + k))) {
+            s = (s + src[(j + 1)]);
+            j = (j + 1);
+        }
+        dst[i] = (s / ((2 * k) + 1));
+        i = (i + 1);
+    }
+    return dst[k];
+}
+
+func main() -> int {
+    return 0;
+}

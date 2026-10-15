@@ -1,0 +1,33 @@
+// mutation binarySearch-012: index-minus-one at 14:30 (arr[e] to arr[e - 1])
+func binarySearch(arr: int[], len: int, queries: int[], qlen: int) -> int {
+    let found: int = 0;
+    for (let q: int = 0; (q < qlen); q = (q + 1)) {
+        let key: int = queries[q];
+        let lo: int = 0;
+        let hi: int = (len - 1);
+        let searching: bool = true;
+        while (searching) {
+            if ((lo > hi)) {
+                searching = false;
+            } else {
+                let mid: int = ((lo + hi) / 2);
+                let v: int = arr[(mid - 1)];
+                if ((v == key)) {
+                    found = (found + 1);
+                    searching = false;
+                } else {
+                    if ((v < key)) {
+                        lo = (mid + 1);
+                    } else {
+                        hi = (mid - 1);
+                    }
+                }
+            }
+        }
+    }
+    return found;
+}
+
+func main() -> int {
+    return 0;
+}

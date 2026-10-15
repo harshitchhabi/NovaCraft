@@ -1,0 +1,12 @@
+// BUG: gather trusts the index array (external index, read).
+func gatherBad(a: int[], alen: int, idx: int[], ilen: int, out: int[], olen: int) -> int {
+    for (let i: int = 0; i < ilen; i = i + 1) {
+        let v: int = a[idx[i]];
+        out[i] = v;
+    }
+    return 0;
+}
+
+func main() -> int {
+    return 0;
+}

@@ -1,0 +1,20 @@
+// Stack-limit check: every frame of `deep` spills (more values live across
+// the recursive call than the 4-register budget holds), so deep recursion
+// pushes the spill stack down from 65536. Without a limit it runs through
+// the trap side channel at 4096 and the harness's arrays below it.
+func deep(arr: int[], len: int, n: int) -> int {
+    let a: int = n + 1;
+    let b: int = n + 2;
+    let c: int = n + 3;
+    let d: int = n + 4;
+    let e: int = n + 5;
+    if (n <= 0) {
+        return arr[0];
+    }
+    let r: int = deep(arr, len, n - 1);
+    return r + a + b + c + d + e;
+}
+
+func main() -> int {
+    return 0;
+}

@@ -1,0 +1,11 @@
+// mutation axpy-029: index-is-length at 6:12 (y[e] to y[ylen])
+func axpy(x: int[], xlen: int, y: int[], ylen: int, alpha: int, n: int) -> int {
+    for (let i: int = 0; (i < n); i = (i + 1)) {
+        y[i] = ((alpha * x[i]) + y[i]);
+    }
+    return y[ylen];
+}
+
+func main() -> int {
+    return 0;
+}
