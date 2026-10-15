@@ -1,11 +1,11 @@
 # Related work
 
 Only the works listed in section 8 of `NOVACRAFT_IMPROVE_PROMPT.md` are cited.
-Every citation is marked **[verify]**. The bibliographic details and the
-one-line characterizations below are from memory. They have not been
-checked against the papers and must be verified before any of this text is
-used elsewhere. The "delta" paragraphs describe NovaCraft, which is checked
-against this repository.
+Citations still marked **[verify]** have bibliographic details and
+one-line characterizations from memory, not yet checked against the
+papers; they must be verified before any of this text is used elsewhere.
+The "delta" paragraphs describe NovaCraft, which is checked against this
+repository.
 
 **What NovaCraft is, for comparison.** A toy compiler for a small language
 targeting 32-bit WebAssembly. It has an intraprocedural interval and
@@ -17,7 +17,7 @@ hand-written kernels, 13 hand-written bug programs and 305 generated
 mutants.
 
 - **Chuang, Narayanasamy, Calder, Jhala. *Bounds Checking with Taint-Based
-  Analysis.* HiPEAC 2007. [verify]** Uses taint analysis to decide which
+  Analysis.* HiPEAC 2007.** Uses taint analysis to decide which
   bounds checks to keep, focusing protection on accesses that untrusted
   input can influence.
   *Delta:* NovaCraft's `chuang` policy is only an approximation of this
@@ -28,7 +28,8 @@ mutants.
   evaluation, `chuang` was the only cheap policy with zero silent
   corruption (results/mutation/RESULTS.md).
 
-- **Wagner et al. ASAP. IEEE S&P 2015. [verify]** Profile-guided removal
+- **Wagner, Kuznetsov, Candea, Kinder. *ASAP: High System-Code Security
+  with Low Overhead.* IEEE S&P 2015.** Profile-guided removal
   of the most expensive sanitizer checks under a user-given overhead
   budget.
   *Delta:* NovaCraft's `budget:F` is similar in spirit (keep checks until a
@@ -36,7 +37,7 @@ mutants.
   static loop-depth cost estimate rather than profiles, and works on a toy
   language.
 
-- **SanRazor. USENIX Security 2021. [verify]** Removes redundant sanitizer
+- **Zhang, Wang, Rigger, He, Su. *SanRazor.* USENIX OSDI 2021.** Removes redundant sanitizer
   checks by combining static and dynamic analysis.
   *Delta:* NovaCraft removes only checks that its static analysis proves,
   plus checks hoisted by loop versioning. It does not use dynamic profiles
@@ -64,7 +65,7 @@ mutants.
   itself; NovaCraft's checks are source-level array bounds inside that
   memory. NovaCraft's runtime numbers come from V8 with 32-bit memory only.
 
-- **Spink et al. *Leaps and Bounds.* IISWC 2022. [verify]** Analyses the
+- **Szewczyk, Stonehouse, Barbalace, Spink. *Leaps and Bounds.* IISWC 2022.** Analyses the
   cost of WebAssembly's memory bounds checking in runtimes.
   *Delta:* also at the runtime layer. NovaCraft measures its own checks
   mainly as a count of checks executed, because its wall-clock
@@ -80,8 +81,8 @@ mutants.
   sentinel gaps, is the kind of in-linear-memory corruption that paper
   describes.
 
-- **PICO: *A Presburger In-bounds Check Optimization.* ACM, DOI
-  10.1145/3460434. [verify]** Uses Presburger arithmetic to prove more
+- **Jung, Ritter, Hack. *PICO: A Presburger In-bounds Check Optimization.*
+  ACM TACO 18(4), 2021. DOI 10.1145/3460434.** Uses Presburger arithmetic to prove more
   bounds checks redundant.
   *Delta:* PICO is a stronger proof technique than NovaCraft's.
   NovaCraft's interval and less-than-fact analysis cannot prove, for

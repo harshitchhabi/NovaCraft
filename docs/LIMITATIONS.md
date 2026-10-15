@@ -71,7 +71,7 @@ Every number below is read from a file in `results/`, named next to it.
 - **Omit is unsound by design.** Every policy other than `full`, `proof`
   and `strict` omits checks the analysis has not proven, and can miss real
   out-of-bounds accesses.
-- **`chuang` is an approximation** of Chuang et al. 2007 [verify]: it keeps
+- **`chuang` is an approximation** of Chuang et al. 2007: it keeps
   unproven writes and omits unproven reads. It is not a reimplementation.
 - **The budget policy ignores hoisting savings.** `budget:F` charges a kept
   site its full in-loop cost even when the site is hoisted and almost free.
